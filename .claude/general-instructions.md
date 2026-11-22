@@ -14,3 +14,9 @@
 
 - Every reply starts with a greeting that states the model writing it and its effort mode, for example: "Hi, Opus 5.5 here on low!".
 - The greeting follows the language rule: it is written in the language the user writes in.
+
+## Setup instructions
+
+- The `setup/` folder holds the instructions to install and run the project on each operating system, both from the console (list of commands) and with alternative methods.
+- Its files follow the format defined in `.claude/setup-format.md`.
+- Keep `setup/` up to date whenever dependencies, requirements or run commands change.

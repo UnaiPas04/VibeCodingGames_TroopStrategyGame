@@ -7,6 +7,7 @@ This repository is the reusable base for web vibecoding projects. It only contai
 - `.claude/`: everything used by Claude (skills, secondary markdown files, prompts, templates).
 - `docs/`: documentation, for Claude and for developers.
 - `source/`: the project source, including code, images, data and any other resource needed to run it.
+- `setup/`: instructions to install and run the project on each operating system.
 
 ## General instructions
 
