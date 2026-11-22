@@ -1,0 +1,12 @@
+# Local Claude Code settings (personal permissions, not shared)
+.claude/settings.local.json
+
+# Secrets and local environment variables
+.env
+.env.*
+!.env.example
+
+# OS-generated files
+Thumbs.db
+desktop.ini
+.DS_Store
