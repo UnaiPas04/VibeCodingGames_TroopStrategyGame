@@ -1,0 +1,19 @@
+{
+  "name": "web-2d-game",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "2D web game prototype: plain Canvas 2D and ES modules, no engine, no build step.",
+  "scripts": {
+    "dev": "node tools/dev-server.mjs",
+    "test": "node --test tests/",
+    "browsers": "playwright install chromium"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1",
+    "@types/node": "^22"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

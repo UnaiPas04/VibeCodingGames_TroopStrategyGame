@@ -10,3 +10,10 @@
 Thumbs.db
 desktop.ini
 .DS_Store
+
+# Node and tooling output
+node_modules/
+.playwright-cli/
+test-results/
+playwright-report/
+*.log
