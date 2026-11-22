@@ -31,7 +31,7 @@ npx playwright cli eval "JSON.stringify(window.__game.state)"   # scene + game s
 npx playwright cli press Enter                                    # activate focused button
 npx playwright cli keydown ArrowRight                             # hold a key...
 npx playwright cli keyup ArrowRight                               # ...and release it
-npx playwright cli screenshot --filename=shot.png                 # then Read shot.png and LOOK at it
+npx playwright cli screenshot --filename=.playwright-cli/shot.png # then Read it and LOOK at it
 npx playwright cli eval "JSON.stringify(window.__game.errors)"    # must be []
 npx playwright cli console                                        # must have no errors
 npx playwright cli close
@@ -41,7 +41,7 @@ npx playwright cli close
 - `window.__game.state` comes from each scene's `debugState()`. Add the values you need to assert (positions, score, lives) to the scene's `debugState()`.
 - `eval` wraps the expression as `() => (expr)`: use one expression (comma operator), never `;`.
 - Click DOM buttons with `eval "document.querySelector('[data-action=play]').click()"` or with `snapshot` + `click <ref>`. The accessibility snapshot shows the HTML UI, never the canvas: use screenshots for the game world.
-- Screenshots are files: **Read them** to see what the player sees. Check what changed, not only that something renders.
+- Screenshots are files: **Read them** to see what the player sees. Check what changed, not only that something renders. Save them under `.playwright-cli/` (git-ignored) so they never end up in commits.
 - Saving a file under `source/` reloads the page (live reload): re-open the scene you were testing.
 
 ## 4. Checklist
