@@ -36,6 +36,10 @@ Overlap tests for pickups and triggers (`rectsOverlap`, `circlesOverlap`...) sta
 3. Optionally delete the `.hud-net`, `.scores`, `.players`, `.code` rules in `style.css`.
 4. Run `npm test` and the `run-game` skill: the title screen no longer shows "Play online".
 
+## Audio
+
+Core, fully inside `core/audio.js` (public API) and `core/sfx.js` (procedural presets, used only by `audio.js`). Gameplay emits events; `SOUND_EVENTS` in `config.js` is the only place that decides what each event sounds like, and `AUDIO_FILES` lists real files (a file named like a preset replaces it). Mute and volumes are saved. The audio context starts on the first click or key press.
+
 ## Languages
 
 Every UI text is a key: `data-i18n="menu.play"` (or `data-i18n-attr="aria-label:game.canvas"`) in HTML, `game.t('net.results.win', { name })` in JS. Only the chosen language's JSON is downloaded; the choice comes from `?lang=xx`, then the saved setting, then the browser, then the first language.

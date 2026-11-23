@@ -1,7 +1,7 @@
 // Boot: build the shared game context, register scenes and start the loop.
 // URL flags: ?debug  ?seed=123  ?scene=play (skip menus, useful for automated checks)  ?lang=es
 
-import { GAME_ID, KEYS, PAD, TITLE, VIEW } from './config.js';
+import { AUDIO_FILES, GAME_ID, KEYS, PAD, SOUND_EVENTS, TITLE, VIEW } from './config.js';
 import { createAudio } from './core/audio.js';
 import { createView } from './core/canvas.js';
 import { createDebug } from './core/debug.js';
@@ -10,7 +10,6 @@ import { createInput } from './core/input.js';
 import { createLoop } from './core/loop.js';
 import { createRng } from './core/rng.js';
 import { createScenes } from './core/scenes.js';
-import { playSfx } from './core/sfx.js';
 import { createStorage } from './core/storage.js';
 import { createI18n } from './i18n/i18n.js';
 import { createGameOverScene, createPauseScene, createTitleScene } from './scenes/menus.js';
@@ -32,7 +31,7 @@ const game = {
   params,
   view,
   input: createInput({ keys: KEYS, pad: PAD, target: canvas, toGame: view.toGame }),
-  audio: createAudio(),
+  audio: createAudio({ storage }),
   events: createEvents(),
   rng: createRng(seed),
   storage,
@@ -75,13 +74,15 @@ game.actions = {
   restart: () => game.scenes.switch(game.sceneList.play),
   resume: () => game.scenes.pop(),
   menu: () => game.scenes.switch(game.sceneList.title),
-  mute(button) {
-    game.audio.muted = !game.audio.muted;
-    button.setAttribute('aria-pressed', String(game.audio.muted));
-  },
+  mute: (button) => button.setAttribute('aria-pressed', String(game.audio.toggleMuted())),
   fullscreen: () => game.ui.toggleFullscreen(),
   language: () => i18n.setLanguage(i18n.nextLanguage())
 };
+
+// Sound: gameplay emits events; SOUND_EVENTS (config.js) decides what each one sounds like.
+game.audio.bindEvents(game.events, SOUND_EVENTS);
+game.audio.load(AUDIO_FILES);
+document.querySelector('[data-action="mute"]')?.setAttribute('aria-pressed', String(game.audio.muted));
 
 // Texts built in JS (not marked with data-i18n) refresh here when the language changes.
 const showLanguage = () => game.ui.set('language', i18n.languageName);
@@ -98,7 +99,7 @@ function handleUiAction(action, button) {
     console.warn(`Unhandled UI action: ${action}`);
     return;
   }
-  playSfx(game.audio, 'select');
+  game.events.emit('ui:action', { action });
   run(button);
 }
 

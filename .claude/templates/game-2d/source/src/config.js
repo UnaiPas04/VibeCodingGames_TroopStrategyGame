@@ -44,6 +44,25 @@ export const ITEMS = {
   color: '#ffffff' // distinct from every player color in net/session.js
 };
 
+/**
+ * What each game event sounds like: the only place that links gameplay to sound.
+ * Values are sound names: a procedural preset from core/sfx.js, or a file from AUDIO_FILES.
+ * Use { name, volume } to adjust one sound. Gameplay code only emits the events.
+ * @type {Record<string, import('./core/audio.js').SoundRef>}
+ */
+export const SOUND_EVENTS = {
+  'ui:action': 'select', // any menu button
+  'item:collected': 'coin', // by the local player
+  'round:over': 'lose'
+};
+
+/**
+ * Audio files, loaded at boot (relative to index.html). A file named like a preset replaces it,
+ * e.g. { coin: './assets/coin.wav' }. Music tracks are played with game.audio.music.play(name).
+ * @type {Record<string, string>}
+ */
+export const AUDIO_FILES = {};
+
 export const MATCH = {
   seconds: 20, // round length
   playersCollide: true // solid players that push each other (needs src/physics/)

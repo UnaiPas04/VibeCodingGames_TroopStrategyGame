@@ -32,6 +32,7 @@ This branch is the base for 2D web game prototypes. These rules apply to every g
 
 - One concern per module. Keep pure game logic (rules, physics, AI, state) free of canvas and DOM so it can run in `node --test`.
 - No globals except what `config.js` exports. Systems communicate through the event bus (`core/events.js`) or explicit arguments.
+- Sound: only `core/audio.js` touches Web Audio. Gameplay and scenes never play sounds directly: they emit an event (`game.events.emit('item:collected')`) and `SOUND_EVENTS` in `config.js` maps events to sounds. Sounds are names: a procedural preset (`core/sfx.js`) or a file in `AUDIO_FILES` with the same name. Music: `game.audio.music.play(name)` / `.stop()`.
 - Use JSDoc types; `jsconfig.json` type-checks the code in VS Code.
 - Default to plain objects and simple modules. Switch to a data-oriented layout only when the debug overlay (FPS, frame time, entity count) shows a real need; see the `game-architecture` skill.
 - Relative URLs only (`./assets/hero.png`), never absolute paths: the game must work from any sub-path (GitHub Pages, itch.io).

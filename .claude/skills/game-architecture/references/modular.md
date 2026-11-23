@@ -36,7 +36,7 @@ From Robert Nystrom's free book *Game Programming Patterns* (https://gameprogram
 
 - **Game loop + update method**: already in `core/loop.js` and scenes (`update(dt)` at a fixed step, `render(alpha)`).
 - **State**: scenes are states of the game (`core/scenes.js`, stack for overlays like pause); finite state machines for entities (see `2d-game-patterns` → ai.md).
-- **Observer**: `game.events.emit('enemy:died', { enemy })`; score, sound, particles and HUD subscribe. The emitter does not know them. Name events `noun:verb`. Unsubscribe in the scene's `exit()` (`on()` returns the unsubscribe function).
+- **Observer**: `game.events.emit('enemy:died', { enemy })`; score, sound (through `SOUND_EVENTS` in `config.js`), particles and HUD subscribe. The emitter does not know them. Name events `noun:verb`. Unsubscribe in the scene's `exit()` (`on()` returns the unsubscribe function).
 - **Command**: turn inputs into data (`{ type: 'move', dx: 1 }`). Enables undo (push/pop), replays and recorded inputs for tests, AI that uses the same commands as the player, and network input messages.
 - **Component**: when an entity needs optional features, give it optional data fields (`entity.health`, `entity.ai`) and have systems process only entities with that field.
 - **Object pool**: reuse bullets/particles instead of creating and dropping objects every frame (see data-oriented.md).

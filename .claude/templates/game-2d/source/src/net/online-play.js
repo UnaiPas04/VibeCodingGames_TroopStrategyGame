@@ -8,7 +8,6 @@
 import { ITEMS, VIEW } from '../config.js';
 import { clamp, damp } from '../core/math.js';
 import { createRng } from '../core/rng.js';
-import { playSfx } from '../core/sfx.js';
 import { drawMatch, matchToView } from '../scenes/match-view.js';
 import { createMatch, ranking, stepMatch } from '../systems/match.js';
 import { NET, leaveRoom, session } from './session.js';
@@ -40,6 +39,7 @@ export function createOnlinePlayScene(game) {
   function finish(results) {
     if (finished) return;
     finished = true;
+    game.events.emit('round:over', { ranking: results });
     game.scenes.switch(game.sceneList.results, { ranking: results });
   }
 
@@ -54,7 +54,7 @@ export function createOnlinePlayScene(game) {
     snap.players.forEach((s, i) => {
       const p = match.players[i];
       if (!p) return;
-      if (p.id === room.selfId && s.score > p.score) playSfx(game.audio, 'coin');
+      if (p.id === room.selfId && s.score > p.score) game.events.emit('item:collected', { score: s.score });
       p.score = s.score;
       targets[i] = { x: s.x, y: s.y };
     });
@@ -130,7 +130,7 @@ export function createOnlinePlayScene(game) {
       if (room.isHost) {
         inputs.set(room.selfId, dir);
         const { collected } = stepMatch(match, inputs, dt);
-        if (collected.includes(room.selfId)) playSfx(game.audio, 'coin');
+        if (collected.includes(room.selfId)) game.events.emit('item:collected', { score: match.players.find((p) => p.id === room.selfId)?.score });
         sendTimer -= dt;
         if (sendTimer <= 0 || match.ended) {
           sendTimer = 1 / NET.sendHz;

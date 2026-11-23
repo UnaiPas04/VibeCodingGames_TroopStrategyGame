@@ -1,8 +1,9 @@
-// Procedural sound effects: no audio files needed for prototypes.
-// Usage: playSfx(audio, 'coin'). Add presets to PRESETS to taste.
+// Procedural sound effects (internal to core/audio.js): no audio files needed for prototypes.
+// Add or tune presets here; play them by name with game.audio.play('coin') or through SOUND_EVENTS.
 
 /**
- * @typedef {object} SfxPreset
+ * One note of a preset.
+ * @typedef {object} SfxNote
  * @property {OscillatorType | 'noise'} wave
  * @property {number} freq Start frequency (Hz).
  * @property {number} [freqEnd] End frequency (Hz), exponential slide.
@@ -12,7 +13,9 @@
  * @property {number} [jitter=0.05] Random pitch variation so repeats don't sound mechanical.
  */
 
-/** @type {Record<string, SfxPreset | SfxPreset[]>} */
+/** @typedef {SfxNote | SfxNote[]} SfxPreset  An array plays its notes one after another. */
+
+/** @type {Record<string, SfxPreset>} */
 export const PRESETS = {
   coin: [
     { wave: 'square', freq: 988, duration: 0.06, volume: 0.2 },
@@ -31,10 +34,10 @@ export const PRESETS = {
   lose: { wave: 'triangle', freq: 440, freqEnd: 110, duration: 0.6, volume: 0.3 }
 };
 
-/** @type {WeakMap<AudioContext, AudioBuffer>} */
+/** @type {WeakMap<BaseAudioContext, AudioBuffer>} */
 const noiseCache = new WeakMap();
 
-/** @param {AudioContext} ctx */
+/** @param {BaseAudioContext} ctx */
 function noiseBuffer(ctx) {
   let buffer = noiseCache.get(ctx);
   if (!buffer) {
@@ -47,29 +50,28 @@ function noiseBuffer(ctx) {
 }
 
 /**
- * @param {{ctx: AudioContext, buses: {sfx: AudioNode}}} audio
- * @param {string | SfxPreset | SfxPreset[]} sound Preset name or definition.
+ * Schedule a preset now on `destination`.
+ * @param {BaseAudioContext} ctx
+ * @param {AudioNode} destination
+ * @param {SfxPreset} preset
+ * @param {number} [volume=1] Multiplier for every note.
  */
-export function playSfx(audio, sound) {
-  const { ctx } = audio;
-  if (ctx.state !== 'running') return;
-  const def = typeof sound === 'string' ? PRESETS[sound] : sound;
-  if (!def) throw new Error(`Unknown sfx preset: ${sound}`);
-  const notes = Array.isArray(def) ? def : [def];
+export function playPreset(ctx, destination, preset, volume = 1) {
   let t = ctx.currentTime;
-  for (const note of notes) {
-    playNote(audio, note, t);
+  for (const note of Array.isArray(preset) ? preset : [preset]) {
+    playNote(ctx, destination, note, t, volume);
     t += note.duration;
   }
 }
 
 /**
- * @param {{ctx: AudioContext, buses: {sfx: AudioNode}}} audio
- * @param {SfxPreset} note
- * @param {number} t
+ * @param {BaseAudioContext} ctx
+ * @param {AudioNode} destination
+ * @param {SfxNote} note
+ * @param {number} t Start time.
+ * @param {number} volumeScale
  */
-function playNote(audio, note, t) {
-  const { ctx } = audio;
+function playNote(ctx, destination, note, t, volumeScale) {
   const { wave, duration, volume = 0.3, attack = 0.005, jitter = 0.05 } = note;
   const pitch = 1 + (Math.random() * 2 - 1) * jitter;
   const freq = note.freq * pitch;
@@ -77,9 +79,9 @@ function playNote(audio, note, t) {
 
   const gain = ctx.createGain();
   gain.gain.setValueAtTime(0, t);
-  gain.gain.linearRampToValueAtTime(volume, t + attack);
+  gain.gain.linearRampToValueAtTime(volume * volumeScale, t + attack);
   gain.gain.exponentialRampToValueAtTime(0.0001, t + duration);
-  gain.connect(audio.buses.sfx);
+  gain.connect(destination);
 
   if (wave === 'noise') {
     const src = ctx.createBufferSource();

@@ -118,4 +118,10 @@ export function createTweens() {
 
 ## Sound
 
-`core/sfx.js` has presets (`coin`, `jump`, `hit`, `explosion`, `powerup`, `select`, `lose`) with random pitch jitter. Add presets by editing `PRESETS`. Every player action should have a sound, even a greybox beep.
+Every player action should have a sound, even a greybox beep. Never play sounds from gameplay code:
+
+1. Emit an event where the thing happens: `game.events.emit('player:jumped')`.
+2. Map it once in `SOUND_EVENTS` (`config.js`): `'player:jumped': 'jump'` (or `{ name: 'jump', volume: 0.5 }`).
+3. The name is a procedural preset in `core/sfx.js` (`coin`, `jump`, `hit`, `explosion`, `powerup`, `select`, `lose`, with pitch jitter; add more in `PRESETS`). To use a real file later, add it to `AUDIO_FILES` with the same name: no other change.
+
+Music: add the track to `AUDIO_FILES`, then `game.audio.music.play('theme')` (cross-fades) and `game.audio.music.stop()`. Volumes and mute are saved: `game.audio.setVolume('music', 0.5)`, `game.audio.toggleMuted()`.

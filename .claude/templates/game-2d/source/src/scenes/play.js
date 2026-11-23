@@ -2,7 +2,6 @@
 // The rules live in systems/match.js (shared with online play); this scene wires input, sound and HUD.
 
 import { VIEW } from '../config.js';
-import { playSfx } from '../core/sfx.js';
 import { createMatch, stepMatch } from '../systems/match.js';
 import { drawMatch, matchToView } from './match-view.js';
 
@@ -42,13 +41,12 @@ export function createPlayScene(game) {
       if (collected.length > 0) {
         game.ui.set('score', me.score);
         game.events.emit('item:collected', { score: me.score });
-        playSfx(game.audio, 'coin');
       }
       const seconds = Math.ceil(match.timeLeft);
       if (seconds !== shownTime) game.ui.set('time', (shownTime = seconds));
 
       if (match.ended) {
-        playSfx(game.audio, 'lose');
+        game.events.emit('round:over', { score: me.score });
         game.scenes.switch(game.sceneList.gameover, { score: me.score });
       }
     },
