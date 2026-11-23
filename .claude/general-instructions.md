@@ -21,6 +21,11 @@
   - Before writing new logic, look for the module that already owns that responsibility and extend it.
   - When the same logic or the same value would appear in two places, extract it once (a function, a module or a configuration entry) and reuse it. Do not copy and paste.
   - Expose behavior, not internal state: keep a module's data private unless callers really need it.
+- **Separate pure logic from input/output.** Rules, calculations and state changes are plain functions that do not touch the UI, the network, storage or timers, so they can be tested directly. Thin outer layers read inputs, call that logic and show or send the results.
+- **Test every logic change.** New or changed logic comes with unit tests, and every bug fix comes with a test that reproduces the bug first. Run the test suite before considering a change done.
+- **One place for configuration.** Tunable values, limits, identifiers and constants live in the project's configuration file or module, with a short comment on what each one does. No magic numbers or repeated literals scattered through the code.
+- **Dependencies point one way.** No circular imports: higher layers (screens, features) depend on lower ones (logic, helpers), never the other way round. Optional features live in their own folder and are wired in from a few clearly marked places, so a project can remove them by deleting the folder and those lines.
+- **Fail visibly.** Validate inputs at module boundaries and throw or report clear errors. Never swallow errors with an empty `catch`; when ignoring an error is intended (for example, unavailable storage), say why in a comment.
 
 ## Setup instructions
 
