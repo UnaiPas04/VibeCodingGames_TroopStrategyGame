@@ -36,6 +36,17 @@ Overlap tests for pickups and triggers (`rectsOverlap`, `circlesOverlap`...) sta
 3. Optionally delete the `.hud-net`, `.scores`, `.players`, `.code` rules in `style.css`.
 4. Run `npm test` and the `run-game` skill: the title screen no longer shows "Play online".
 
+## Re-add a removed module
+
+The template in `.claude/templates/game-2d/` always keeps every module, so it is the source to restore from (git history of the game works too).
+
+1. Copy the module's files back from the template to the same paths (see the Files column in the table above), including its tests file.
+2. Restore its tagged lines: run `grep -rn "\[module:<name>\]" .claude/templates/game-2d` and add each line to the same place in the game's file.
+3. Restore the config values the removal steps deleted (physics: `MATCH.playersCollide`, `PLAYER.mass`; net: the CSS rules in `style.css`, and the `net.*` keys in every locale file if you deleted them).
+4. Run `npm test` and the `run-game` skill.
+
+If the game's files changed a lot since the template, compare by hand instead of copying whole files: only the module folder and the tagged lines belong to the module.
+
 ## Audio
 
 Core, fully inside `core/audio.js` (public API) and `core/sfx.js` (procedural presets, used only by `audio.js`). Gameplay emits events; `SOUND_EVENTS` in `config.js` is the only place that decides what each event sounds like, and `AUDIO_FILES` lists real files (a file named like a preset replaces it). Mute and volumes are saved. The audio context starts on the first click or key press.
