@@ -1,21 +1,7 @@
 // Menu scenes (title, pause, game over). Their UI is HTML in index.html; these scenes
-// only pick the screen, draw a background and handle gamepad navigation.
+// only pick the screen, draw a background and handle gamepad navigation (ui.navigate).
 
 import { VIEW } from '../config.js';
-
-/**
- * Gamepad support for DOM menus: d-pad moves focus, A clicks the focused button.
- * The keyboard already works natively (Tab/arrows via ui.js, Enter/Space on buttons).
- * @param {import('../main.js').Game} game
- */
-function navigateWithPad(game) {
-  const { input } = game;
-  const key = input.padPressed('down') ? 'ArrowDown' : input.padPressed('up') ? 'ArrowUp' : null;
-  if (key) window.dispatchEvent(new KeyboardEvent('keydown', { code: key }));
-  if (input.padPressed('confirm') && document.activeElement instanceof HTMLButtonElement) {
-    document.activeElement.click();
-  }
-}
 
 /** @param {CanvasRenderingContext2D} ctx */
 function clear(ctx) {
@@ -32,7 +18,7 @@ export function createTitleScene(game) {
       game.ui.show('title');
     },
     update() {
-      navigateWithPad(game);
+      game.ui.navigate(game.input);
     },
     render: clear
   };
@@ -53,7 +39,7 @@ export function createPauseScene(game) {
         game.scenes.pop();
         return;
       }
-      navigateWithPad(game);
+      game.ui.navigate(game.input);
     },
     render(/** @type {CanvasRenderingContext2D} */ ctx) {
       ctx.fillStyle = 'rgba(0,0,0,0.5)';
@@ -76,7 +62,7 @@ export function createGameOverScene(game) {
       game.ui.show('gameover');
     },
     update() {
-      navigateWithPad(game);
+      game.ui.navigate(game.input);
     },
     render: clear,
     debugState: () => ({ score })

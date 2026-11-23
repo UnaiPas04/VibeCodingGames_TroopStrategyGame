@@ -1,8 +1,8 @@
-// Unit tests for pure logic. Run with: npm test
+// Unit tests for core helpers. Run with: npm test
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { circleRectOverlap, circlesOverlap, clamp, rectPenetration, rectsOverlap } from '../source/src/core/math.js';
+import { circleRectOverlap, circlesOverlap, clamp, rectsOverlap } from '../source/src/core/math.js';
 import { createRng } from '../source/src/core/rng.js';
 import { createEvents } from '../source/src/core/events.js';
 
@@ -22,12 +22,6 @@ test('circle overlaps', () => {
   assert.equal(circlesOverlap({ x: 0, y: 0, r: 5 }, { x: 8, y: 0, r: 5 }), true);
   assert.equal(circlesOverlap({ x: 0, y: 0, r: 5 }, { x: 11, y: 0, r: 5 }), false);
   assert.equal(circleRectOverlap({ x: -3, y: 5, r: 4 }, { x: 0, y: 0, w: 10, h: 10 }), true);
-});
-
-test('rectPenetration pushes out along the shortest axis', () => {
-  const push = rectPenetration({ x: 8, y: 0, w: 10, h: 10 }, { x: 0, y: 0, w: 10, h: 10 });
-  assert.deepEqual(push, { x: 2, y: 0 });
-  assert.equal(rectPenetration({ x: 20, y: 0, w: 5, h: 5 }, { x: 0, y: 0, w: 10, h: 10 }), null);
 });
 
 test('rng is deterministic for a seed', () => {

@@ -15,18 +15,26 @@ export function createUi({ root, onAction }) {
     if (button instanceof HTMLElement) onAction(button.dataset.action ?? '', button);
   });
 
-  // Keyboard/gamepad-friendly focus navigation inside the active screen.
-  window.addEventListener('keydown', (e) => {
+  /** Move focus to the next (+1) or previous (-1) control of the active screen. */
+  function moveFocus(/** @type {number} */ delta) {
     if (!active) return;
-    const items = /** @type {HTMLElement[]} */ ([...active.querySelectorAll('button:not([disabled]), input, select')]);
+    const items = /** @type {HTMLElement[]} */ ([...active.querySelectorAll('button:not([disabled]):not([hidden]), input, select')]).filter(
+      (el) => el.offsetParent !== null
+    );
     if (!items.length) return;
     const index = items.indexOf(/** @type {HTMLElement} */ (document.activeElement));
+    items[(index + delta + items.length) % items.length].focus();
+  }
+
+  // Keyboard focus navigation inside the active screen (Tab also works natively).
+  window.addEventListener('keydown', (e) => {
+    if (!active) return;
     const isText = document.activeElement instanceof HTMLInputElement;
     if (e.code === 'ArrowDown' || (e.code === 'ArrowRight' && !isText)) {
-      items[(index + 1) % items.length].focus();
+      moveFocus(1);
       e.preventDefault();
     } else if (e.code === 'ArrowUp' || (e.code === 'ArrowLeft' && !isText)) {
-      items[(index - 1 + items.length) % items.length].focus();
+      moveFocus(-1);
       e.preventDefault();
     }
   });
@@ -39,6 +47,17 @@ export function createUi({ root, onAction }) {
       }
       active = name ? root.querySelector(`[data-screen="${name}"]`) : null;
       /** @type {HTMLElement | null | undefined} */ (active?.querySelector('button, input'))?.focus();
+    },
+    moveFocus,
+    /**
+     * Gamepad support for menus: d-pad moves focus, A clicks the focused control.
+     * Call from the update() of scenes that show a menu.
+     * @param {{padPressed: (action: string) => boolean}} input
+     */
+    navigate(input) {
+      if (input.padPressed('down')) moveFocus(1);
+      if (input.padPressed('up')) moveFocus(-1);
+      if (input.padPressed('confirm') && document.activeElement instanceof HTMLButtonElement) document.activeElement.click();
     },
     get screen() {
       return active?.getAttribute('data-screen') ?? null;

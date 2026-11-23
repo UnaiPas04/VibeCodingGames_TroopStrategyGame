@@ -17,10 +17,10 @@ Check `source/index.html` first. If it exists, a game is already here: **stop**,
 2. **Copy the template** (paths relative to the repo root):
    - `.claude/templates/game-2d/source/` → `source/` (remove `source/.gitkeep`)
    - `.claude/templates/game-2d/tests/` → `tests/`
-   - The template includes online rooms (`src/net/`, `scenes/lobby.js`, `scenes/online-play.js`, "Play online" button). **Single-player game:** delete those three and the `installMultiplayer` import and call in `src/main.js`. **Multiplayer game:** keep them and follow the `p2p-rooms` skill.
+   - **Choose the modules** with `.claude/templates/game-2d/MODULES.md`: remove `physics` if nothing is solid, remove `net` (online rooms) for single-player games, following its exact steps. Multiplayer games keep `net` and follow the `p2p-rooms` skill.
 3. **Identity.** In `source/src/config.js` set `TITLE` and a unique `GAME_ID` = `<kebab-slug>-<4 random lowercase letters or digits>` (e.g. `snake-k3x9`). `GAME_ID` prefixes saved data and namespaces P2P rooms, so it must be unique per game. Also set `<title>` and the title-screen `<h1>` in `source/index.html`.
 4. **Dependencies.** Run `npm install` if `node_modules/` is missing, and `npx playwright install chromium` once per machine.
-5. **Replace the demo.** The demo (move a square, collect items; online: see the other players move) shows every module in use. Replace `scenes/play.js`, `entities/`, `systems/`, `tests/demo.test.js`, the HUD and the menu texts with the real game, keeping the structure: pure logic in `entities/` and `systems/` with tests, drawing in scenes, menus and HUD in `index.html`. Greybox first (rectangles and procedural sounds from `core/sfx.js`).
+5. **Replace the demo.** The demo (collect items against the clock; online: 2–4 players push each other and compete for items, with scores and results) shows every module in use. Replace the demo files listed in `MODULES.md`, the HUD and the menu texts with the real game, keeping the structure: pure logic in `entities/` and `systems/` with tests, drawing in scenes, menus and HUD in `index.html`. Greybox first (rectangles and procedural sounds from `core/sfx.js`).
 6. **Verify** with the `run-game` skill. Then tell the user how to play (`npm run dev`, controls).
 7. **Setup and deploy.** Update `setup/` only if the game added requirements or commands. Remind the user once: to publish, enable GitHub Pages with "Source: GitHub Actions" in the repository settings (the workflow in `.github/workflows/pages.yml` deploys `source/` on every push to `main`).
 

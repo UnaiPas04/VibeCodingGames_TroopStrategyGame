@@ -1,15 +1,17 @@
-// Installs online rooms into the game: lobby screen, "Online" button on the title screen,
-// lobby/online scenes, UI actions and #room=CODE invite links.
-// In main.js:  import { installMultiplayer } from './net/install.js';  installMultiplayer(game);
+// Installs online play into the game: lobby, match HUD and results screens, the "Play online"
+// button, the lobby/online/results scenes, their UI actions and #room=CODE invite links.
+// Optional module: see .claude/templates/game-2d/MODULES.md to remove it from single-player games.
 
-import { createLobbyScene } from '../scenes/lobby.js';
-import { createOnlinePlayScene } from '../scenes/online-play.js';
+import { createLobbyScene } from './lobby.js';
+import { createOnlinePlayScene } from './online-play.js';
+import { createOnlineResultsScene } from './online-results.js';
+import { leaveRoom } from './session.js';
 
-const LOBBY_HTML = `
-<div class="hud" data-net-hud hidden>
-  <span>Room <b data-bind="net-room"></b></span>
-  <span>Players <b data-bind="net-players"></b></span>
-  <span>Esc: leave</span>
+const NET_HTML = `
+<div class="hud hud-net" data-net-hud hidden>
+  <span>Time <b data-bind="net-time"></b></span>
+  <ol class="scores" data-net-scores></ol>
+  <span class="hint">Esc: leave</span>
 </div>
 <section class="screen" data-screen="lobby" hidden>
   <h2>Online</h2>
@@ -25,27 +27,41 @@ const LOBBY_HTML = `
     <button data-action="room-copy">Copy invite link</button>
     <ul class="players" data-players></ul>
     <button data-action="room-ready" aria-pressed="false">Ready</button>
-    <button data-action="room-start" data-host-only>Start</button>
+    <button data-action="room-start">Start</button>
     <button data-action="room-leave">Leave room</button>
   </div>
   <p class="hint" role="status" data-bind="lobby-status"></p>
+</section>
+<section class="screen" data-screen="results" hidden>
+  <h2 data-bind="results-title"></h2>
+  <ol class="players" data-net-results></ol>
+  <button data-action="room-back">Back to lobby</button>
+  <button data-action="menu">Main menu</button>
 </section>`;
 
 /** @param {import('../main.js').Game} game */
 export function installMultiplayer(game) {
   const root = /** @type {HTMLElement} */ (document.getElementById('ui'));
-  root.insertAdjacentHTML('beforeend', LOBBY_HTML);
+  root.insertAdjacentHTML('beforeend', NET_HTML);
 
-  // "Online" button right after "Play" on the title screen.
-  const play = root.querySelector('[data-screen="title"] [data-action="play"]');
-  play?.insertAdjacentHTML('afterend', '<button data-action="online">Play online</button>');
+  // "Play online" right after "Play" on the title screen.
+  root.querySelector('[data-screen="title"] [data-action="play"]')?.insertAdjacentHTML('afterend', '<button data-action="online">Play online</button>');
 
   const lobby = createLobbyScene(game);
   game.sceneList.lobby = lobby;
   game.sceneList.online = createOnlinePlayScene(game);
+  game.sceneList.results = createOnlineResultsScene(game);
 
-  game.actions.online = () => game.scenes.switch(lobby);
-  Object.assign(game.actions, lobby.actions);
+  const goToMenu = game.actions.menu;
+  Object.assign(game.actions, lobby.actions, {
+    online: () => game.scenes.switch(lobby),
+    'room-back': () => game.scenes.switch(lobby),
+    // Going back to the main menu always leaves the room.
+    menu: (/** @type {HTMLElement} */ button) => {
+      leaveRoom();
+      goToMenu(button);
+    }
+  });
 
   // Invite links: index.html#room=CODE opens the lobby and joins directly.
   const code = new URLSearchParams(location.hash.slice(1)).get('room');

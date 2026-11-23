@@ -1,4 +1,4 @@
-// Small math helpers. Pure functions: safe to unit test in Node.
+// Small math helpers and overlap tests (no collision response: see physics/). Pure functions, unit tested.
 
 /** @typedef {{x: number, y: number}} Vec */
 /** @typedef {{x: number, y: number, w: number, h: number}} Rect  x/y = top-left corner */
@@ -44,18 +44,3 @@ export function circleRectOverlap(c, r) {
 
 /** @param {Vec} p @param {Rect} r */
 export const pointInRect = (p, r) => p.x >= r.x && p.x < r.x + r.w && p.y >= r.y && p.y < r.y + r.h;
-
-/**
- * Minimum translation to push `a` out of `b` (axis of least penetration), or null if not overlapping.
- * @param {Rect} a @param {Rect} b
- */
-export function rectPenetration(a, b) {
-  const dx1 = b.x + b.w - a.x;
-  const dx2 = a.x + a.w - b.x;
-  const dy1 = b.y + b.h - a.y;
-  const dy2 = a.y + a.h - b.y;
-  if (dx1 <= 0 || dx2 <= 0 || dy1 <= 0 || dy2 <= 0) return null;
-  const px = dx1 < dx2 ? dx1 : -dx2;
-  const py = dy1 < dy2 ? dy1 : -dy2;
-  return Math.abs(px) < Math.abs(py) ? { x: px, y: 0 } : { x: 0, y: py };
-}

@@ -34,13 +34,17 @@ export const PLAYER = {
   size: 10,
   speed: 110, // units per second
   accel: 900,
+  mass: 1, // with physics: equal masses push each other equally
   color: '#f4d35e'
 };
 
 export const ITEMS = {
   size: 6,
   count: 5,
-  color: '#5ec8f4'
+  color: '#ffffff' // distinct from every player color in net/session.js
 };
 
-export const ROUND_SECONDS = 20;
+export const MATCH = {
+  seconds: 20, // round length
+  playersCollide: true // solid players that push each other (needs src/physics/)
+};

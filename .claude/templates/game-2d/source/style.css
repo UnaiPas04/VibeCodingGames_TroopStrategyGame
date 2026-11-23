@@ -159,8 +159,21 @@ input:focus-visible {
   text-align: left;
 }
 
+.hud-net {
+  align-items: center;
+}
+
+.scores {
+  display: flex;
+  gap: 16px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.scores li,
 .players li {
-  padding: 4px 8px;
+  padding: 2px 8px;
   border-left: 6px solid var(--player, var(--text));
 }
 

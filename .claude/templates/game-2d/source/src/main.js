@@ -15,8 +15,7 @@ import { createStorage } from './core/storage.js';
 import { createGameOverScene, createPauseScene, createTitleScene } from './scenes/menus.js';
 import { createPlayScene } from './scenes/play.js';
 import { createUi } from './ui/ui.js';
-// Online rooms (lobby, 'Play online' button, #room= links). Remove this import and the call below for single-player games.
-import { installMultiplayer } from './net/install.js';
+import { installMultiplayer } from './net/install.js'; // [module:net] online rooms (see .claude/templates/game-2d/MODULES.md)
 
 const params = new URLSearchParams(location.search);
 document.title = TITLE;
@@ -38,7 +37,7 @@ const game = {
   debug: /** @type {import('./core/debug.js').DebugHandle} */ (/** @type {unknown} */ (null)),
   /** @type {Record<string, import('./core/scenes.js').Scene>} */
   sceneList: {},
-  /** UI actions by name: buttons in index.html declare data-action="name". Addons can add more. */
+  /** UI actions by name: buttons in index.html declare data-action="name". Optional modules add their own. */
   /** @type {Record<string, (button: HTMLElement) => void>} */
   actions: {}
 };
@@ -105,13 +104,12 @@ const loop = createLoop({
   }
 });
 
-// Auto-pause: when the tab is hidden during play, open the pause menu.
+// Single-player auto-pause: hiding the tab opens the pause menu. (Online matches never pause.)
 document.addEventListener('visibilitychange', () => {
   if (document.hidden && game.scenes.current === game.sceneList.play) game.scenes.push(game.sceneList.pause);
-  if (!document.hidden) loop.paused = false;
 });
 
-installMultiplayer(game);
+installMultiplayer(game); // [module:net]
 
 const startScene = game.sceneList[params.get('scene') ?? ''] ?? game.sceneList.title;
 game.scenes.switch(startScene);

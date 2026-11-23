@@ -1,12 +1,15 @@
 // Network transports with one shared interface, so the room logic never depends on the library:
 //   { selfId, send(data, target?), sendBinary(bytes, target?), onMessage(fn), onBinary(fn),
 //     onPeerJoin(fn), onPeerLeave(fn), onError(fn), leave() }
-// - 'trystero': real P2P over WebRTC (Trystero, public Nostr relays for discovery, no backend).
+// - 'trystero': real P2P over WebRTC (vendored Trystero, public Nostr relays for discovery, no backend).
 // - 'local': BroadcastChannel between tabs/windows of the same browser. Offline and deterministic,
 //   for development and automated tests (?net=local).
 
-/** Pinned on purpose: update deliberately and re-test (see the p2p-rooms skill). */
-export const TRYSTERO_URL = 'https://esm.run/trystero@0.27.0';
+/**
+ * Vendored copy (source/vendor/trystero/, see its README for version, authors and how to update).
+ * Imported only when online play starts; resolved relative to this module.
+ */
+export const TRYSTERO_PATH = '../../vendor/trystero/trystero.js';
 
 /**
  * @typedef {object} Transport
@@ -43,7 +46,7 @@ export function createTransport(kind, options) {
 async function createTrysteroTransport({ appId, roomId, maxUsers, password, turnConfig }) {
   let mod;
   try {
-    mod = await import(TRYSTERO_URL);
+    mod = await import(TRYSTERO_PATH);
   } catch (err) {
     throw Object.assign(new Error('Online play unavailable: could not load the P2P library.'), { code: 'load-failed', cause: err });
   }

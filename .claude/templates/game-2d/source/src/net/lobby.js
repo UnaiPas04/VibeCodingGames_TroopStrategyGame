@@ -1,8 +1,9 @@
 // Lobby: create or join a room, share the invite link, mark ready, host starts the match.
+// The room stays open between matches; it is left only through leaveRoom() (Leave, main menu, Esc in a match).
 
 import { VIEW } from '../config.js';
-import { createRoom, joinRoom } from '../net/room.js';
-import { APP_ID, NET, session } from '../net/session.js';
+import { createRoom, joinRoom } from './room.js';
+import { APP_ID, NET, leaveRoom, session } from './session.js';
 
 const MESSAGES = {
   'room-full': 'That room is full.',
@@ -10,7 +11,7 @@ const MESSAGES = {
   'host-left': 'The host left the room.',
   'load-failed': 'Online play unavailable: could not load the network library.',
   'relay-failed': 'Could not reach the matchmaking relays. Check your connection.',
-  'peer-connect-failed': 'Could not connect to the other player (network blocks direct connections).'
+  'peer-connect-failed': 'Could not connect to the other player (the network blocks direct connections).'
 };
 
 /** @param {import('../main.js').Game} game */
@@ -20,8 +21,9 @@ export function createLobbyScene(game) {
   const $ = (/** @type {string} */ sel) => /** @type {HTMLElement} */ (root.querySelector(sel));
   const nameInput = /** @type {HTMLInputElement} */ ($('[data-field="name"]'));
   const codeInput = /** @type {HTMLInputElement} */ ($('[data-field="code"]'));
+  const readyButton = $('[data-action="room-ready"]');
+  const startButton = /** @type {HTMLButtonElement} */ ($('[data-action="room-start"]'));
   let busy = false;
-  let keepRoom = false; // true when leaving the lobby to start the match
 
   /** @param {string} text */
   const status = (text) => ui.set('lobby-status', text);
@@ -32,52 +34,55 @@ export function createLobbyScene(game) {
     $('[data-lobby-room]').hidden = !room;
     if (!room) return;
     ui.set('room-code', room.code);
-    const list = $('[data-players]');
-    list.replaceChildren(
+    $('[data-players]').replaceChildren(
       ...room.players.map((p) => {
         const li = document.createElement('li');
         li.style.setProperty('--player', p.color);
-        li.textContent = `${p.name}${p.id === room.hostId ? ' (host)' : ''}${p.id === room.selfId ? ' (you)' : ''}${p.ready || p.id === room.hostId ? ' ✓' : ''}`;
+        const tags = [p.id === room.hostId && 'host', p.id === room.selfId && 'you'].filter(Boolean).join(', ');
+        li.textContent = `${p.name}${tags ? ` (${tags})` : ''}${p.ready || p.id === room.hostId ? ' ✓' : ''}`;
         return li;
       })
     );
-    const startButton = /** @type {HTMLButtonElement} */ ($('[data-action="room-start"]'));
-    startButton.hidden = !room.isHost;
     const guests = room.players.filter((p) => p.id !== room.hostId);
+    startButton.hidden = !room.isHost;
     startButton.disabled = guests.length === 0 || guests.some((p) => !p.ready);
-    $('[data-action="room-ready"]').hidden = room.isHost;
+    readyButton.hidden = room.isHost;
+    const me = room.players.find((p) => p.id === room.selfId);
+    readyButton.setAttribute('aria-pressed', String(!!me?.ready));
   }
 
-  /** @param {import('../net/room.js').Room} room */
+  /** Each player's color follows their seat in the roster. @param {import('./room.js').Room} room */
+  function syncSeatColor(room) {
+    const seat = room.players.findIndex((p) => p.id === room.selfId);
+    const color = NET.colors[seat % NET.colors.length];
+    const me = room.players[seat];
+    if (me && color && me.color !== color) room.setProfile({ color });
+  }
+
+  /** Listeners that live as long as the room. @param {import('./room.js').Room} room */
   function attach(room) {
     session.room = room;
-    const color = NET.colors[room.players.findIndex((p) => p.id === room.selfId) % NET.colors.length] ?? NET.colors[0];
-    if (room.isHost) room.setProfile({ color });
+    syncSeatColor(room);
     room.onRoster(() => {
-      // Guests pick the color of their seat once they appear in the roster.
-      const me = room.players.find((p) => p.id === room.selfId);
-      const seat = room.players.findIndex((p) => p.id === room.selfId);
-      const seatColor = NET.colors[seat % NET.colors.length];
-      if (me && seatColor && me.color !== seatColor && !room.isHost) room.setProfile({ color: seatColor });
-      if (game.scenes.current?.name === 'lobby') showRoomView();
+      syncSeatColor(room);
+      if (game.scenes.current === lobby) showRoomView();
     });
     room.onClosed((reason) => {
       if (session.room === room) session.room = null;
-      if (reason === 'left') return; // we left on purpose; the caller already changes the screen
+      if (reason === 'left') return; // we left on purpose: the caller already changed the screen
       game.scenes.switch(lobby);
       status(MESSAGES[reason] ?? `Room closed (${reason}).`);
     });
     room.onError((err) => status(MESSAGES[err.code ?? ''] ?? err.message));
+    // Guests follow the host into the match from any screen (lobby or results).
     room.on('start', (data, from) => {
-      if (from !== room.hostId) return;
-      keepRoom = true;
-      game.scenes.switch(game.sceneList.online, data);
+      if (from === room.hostId) game.scenes.switch(game.sceneList.online, data);
     });
     showRoomView();
     status(room.isHost ? 'Share the code or the invite link.' : 'Joined. Press Ready.');
   }
 
-  /** @param {() => Promise<import('../net/room.js').Room>} open */
+  /** @param {() => Promise<import('./room.js').Room>} open */
   async function connect(open) {
     if (busy) return;
     busy = true;
@@ -86,8 +91,8 @@ export function createLobbyScene(game) {
     try {
       attach(await open());
     } catch (err) {
-      const e = /** @type {any} */ (err);
-      status(MESSAGES[e.code] ?? e.message);
+      const e = /** @type {{code?: string, message: string}} */ (err);
+      status(MESSAGES[e.code ?? ''] ?? e.message);
     } finally {
       busy = false;
     }
@@ -99,21 +104,19 @@ export function createLobbyScene(game) {
     name: 'lobby',
     /** @param {{join?: string}} [data] */
     enter(data) {
-      keepRoom = false;
       nameInput.value = game.storage.get('name', '');
       ui.show('lobby');
+      // Back from a match: guests must confirm again for the next one.
+      const room = session.room;
+      if (room && !room.isHost && room.players.find((p) => p.id === room.selfId)?.ready) room.setProfile({ ready: false });
       showRoomView();
       if (data?.join) {
         codeInput.value = data.join;
         connect(() => joinRoom(data.join ?? '', options()));
       }
     },
-    exit() {
-      if (!keepRoom && session.room) {
-        const room = session.room;
-        session.room = null;
-        room.leave();
-      }
+    update() {
+      ui.navigate(game.input);
     },
     render(/** @type {CanvasRenderingContext2D} */ ctx) {
       ctx.fillStyle = VIEW.background;
@@ -140,26 +143,21 @@ export function createLobbyScene(game) {
           status(session.room.inviteUrl);
         }
       },
-      'room-ready': (/** @type {HTMLElement} */ button) => {
+      'room-ready': () => {
         const room = session.room;
-        if (!room) return;
-        const me = room.players.find((p) => p.id === room.selfId);
-        const ready = !me?.ready;
-        room.setProfile({ ready });
-        button.setAttribute('aria-pressed', String(ready));
+        const me = room?.players.find((p) => p.id === room.selfId);
+        if (room && me) room.setProfile({ ready: !me.ready });
       },
       'room-start': () => {
         const room = session.room;
         if (!room?.isHost) return;
-        const data = { seed: Math.floor(Math.random() * 2 ** 31) };
+        // The player order fixes everyone's slot in the match and in the snapshots.
+        const data = { seed: Math.floor(Math.random() * 2 ** 31), order: room.players.map((p) => p.id) };
         room.send('start', data);
-        keepRoom = true;
         game.scenes.switch(game.sceneList.online, data);
       },
       'room-leave': () => {
-        const room = session.room;
-        session.room = null;
-        room?.leave();
+        leaveRoom();
         showRoomView();
         status('');
       }

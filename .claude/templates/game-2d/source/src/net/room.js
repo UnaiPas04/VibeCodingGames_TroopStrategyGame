@@ -78,10 +78,20 @@ async function openRoom(code, isHost, options) {
   /** @type {Map<string, Set<(data: any, from: string) => void>>} */
   const handlers = new Map();
   const listeners = {
-    /** @type {((players: Player[]) => void)[]} */ roster: [],
-    /** @type {((reason: string) => void)[]} */ closed: [],
-    /** @type {((bytes: Uint8Array, from: string) => void)[]} */ binary: [],
-    /** @type {((err: {code?: string, message: string}) => void)[]} */ error: []
+    /** @type {Set<(players: Player[]) => void>} */ roster: new Set(),
+    /** @type {Set<(reason: string) => void>} */ closed: new Set(),
+    /** @type {Set<(bytes: Uint8Array, from: string) => void>} */ binary: new Set(),
+    /** @type {Set<(err: {code?: string, message: string}) => void>} */ error: new Set()
+  };
+  /**
+   * Add a listener and return its unsubscribe function.
+   * @template {Function} F
+   * @param {Set<F>} set
+   * @param {F} fn
+   */
+  const subscribe = (set, fn) => {
+    set.add(fn);
+    return () => void set.delete(fn);
   };
 
   const list = () => [...players.values()];
@@ -233,10 +243,11 @@ async function openRoom(code, isHost, options) {
       handlers.get(type)?.add(fn);
       return () => handlers.get(type)?.delete(fn);
     },
-    onBinary: (/** @type {(bytes: Uint8Array, from: string) => void} */ fn) => void listeners.binary.push(fn),
-    onRoster: (/** @type {(players: Player[]) => void} */ fn) => void listeners.roster.push(fn),
-    onClosed: (/** @type {(reason: string) => void} */ fn) => void listeners.closed.push(fn),
-    onError: (/** @type {(err: {code?: string, message: string}) => void} */ fn) => void listeners.error.push(fn),
+    // Every on* method returns an unsubscribe function: call it in the scene's exit().
+    onBinary: (/** @type {(bytes: Uint8Array, from: string) => void} */ fn) => subscribe(listeners.binary, fn),
+    onRoster: (/** @type {(players: Player[]) => void} */ fn) => subscribe(listeners.roster, fn),
+    onClosed: (/** @type {(reason: string) => void} */ fn) => subscribe(listeners.closed, fn),
+    onError: (/** @type {(err: {code?: string, message: string}) => void} */ fn) => subscribe(listeners.error, fn),
     /** Update my name, color or ready flag. */
     setProfile(/** @type {Partial<Player>} */ changes) {
       Object.assign(me, pickProfile(changes));

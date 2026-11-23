@@ -66,6 +66,6 @@ Tunnelling: if `speed * dt` can exceed the thinnest wall (a tile), split the mov
 
 - Broad phase: for more than ~100 entities use a spatial hash (see the `game-architecture` skill), else check all pairs.
 - Narrow phase: `rectsOverlap`, `circlesOverlap`, `circleRectOverlap` in `core/math.js`.
-- Push apart solid entities with `rectPenetration(a, b)` (returns the minimum translation).
+- Solid entities that push each other or stop at walls: the optional `src/physics/collisions.js` module (`separate`, `resolveCollisions`, boxes and circles, mass 0 = static, inelastic pushing). Tile maps use the axis-separated code above instead.
 - Use smaller hitboxes than sprites for the player (forgiving) and larger ones for pickups (generous).
 - One-way platforms: collide only when `vy > 0` and the body's previous bottom was above the platform top.

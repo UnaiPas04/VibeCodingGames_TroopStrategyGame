@@ -62,8 +62,13 @@ npx playwright cli eval "document.querySelector('[data-action=online]').click()"
 npx playwright cli eval "document.querySelector('[data-action=room-create]').click()"
 npx playwright cli eval "window.__game.state.room"              # room code, e.g. QX47R
 npx playwright cli tab-new "http://127.0.0.1:5180/?net=local#room=QX47R"
-npx playwright cli tab-select 0                                 # switch between players
+npx playwright cli eval "document.querySelector('[data-action=room-ready]').click()"   # guest
+npx playwright cli tab-select 0                                 # back to the host
+npx playwright cli eval "document.querySelector('[data-action=room-start]').click()"
+npx playwright cli eval "JSON.stringify(window.__game.state)"  # scene 'online': players, scores, timeLeft
 ```
+
+Host-authoritative games only simulate in the host tab, and a background tab is paused by the browser. To test a guest's input: in the guest tab `keydown` (the input is sent once), `tab-select` the host and wait, check the state, then go back and `keyup`. Check the end of the match too (scene `results` on both tabs, "Back to lobby", rematch).
 
 Real network (public relays), two separate browsers: `npx playwright cli -s=p1 open --browser=chromium <url>` and `-s=p2 ...`. Joining takes a few seconds. Browser console errors about a public Nostr relay WebSocket (`wss://...` handshake failed) are expected noise from relays that are down; `window.__game.errors` must still be empty.
 

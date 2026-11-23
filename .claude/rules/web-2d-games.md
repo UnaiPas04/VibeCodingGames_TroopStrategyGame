@@ -5,8 +5,9 @@ This branch is the base for 2D web game prototypes. These rules apply to every g
 ## Stack
 
 - Plain web platform only: Canvas 2D, vanilla JavaScript ES modules, Web Audio API, Gamepad API, Pointer Events, HTML and CSS.
-- No game engines (Phaser, PixiJS, Kaboom, Excalibur, Three.js...), no UI frameworks, no bundler, no build step, no npm runtime dependencies.
-- The only allowed runtime library is Trystero, for multiplayer rooms, used only by `source/src/net/transports.js` and loaded on demand when online play starts (see the `p2p-rooms` skill).
+- No game engines (Phaser, PixiJS, Kaboom, Excalibur, Three.js...), no UI frameworks, no bundler, no build step.
+- Prefer our own small code for simple needs (the template's `physics/` module covers simple 2D collisions).
+- Third-party open-source code is allowed only **vendored**: copied into `source/vendor/<name>/` with its license and a `README.md` (author, version, source URL, how to update), pinned, and never loaded from a CDN or any URL at runtime. Add a library to the specific game that needs it, not to this base. Today the template vendors only Trystero (online rooms, see the `p2p-rooms` skill).
 - Always 2D. No WebGL or 3D.
 - Development tools (Node scripts, Playwright, `node --test`) are fine because they never ship with the game.
 - **These rules override any skill**, including third-party ones (`game-engine`, `prototype-fast`, `frontend-design`...), whenever a skill suggests engines, frameworks, npm runtime libraries, a build step, 3D, or a different folder layout.
@@ -15,7 +16,9 @@ This branch is the base for 2D web game prototypes. These rules apply to every g
 
 - `source/`: the game, served as-is. `index.html`, `src/`, `assets/`.
   - `src/core/`: small reusable helpers (loop, canvas, input, audio, scenes, events, rng, math, storage, debug). Not an engine: just our own code.
-  - `src/scenes/`, `src/entities/`, `src/systems/`, `src/ui/`, `src/net/` (only for multiplayer).
+  - `src/scenes/`, `src/entities/`, `src/systems/`, `src/ui/`.
+  - Optional modules, one folder each: `src/physics/` (simple collisions), `src/net/` (online rooms). Lines that use a module outside its folder are tagged `[module:<name>]`. Catalog and removal steps: `.claude/templates/game-2d/MODULES.md`.
+  - `vendor/`: third-party code, as described in Stack.
   - `src/config.js`: `GAME_ID` and every tunable value.
   - `assets/`: images, audio, fonts. Credit every third-party asset in `assets/CREDITS.md` (prefer CC0 sources such as kenney.nl).
 - `tests/`: `node --test` unit tests for pure logic.

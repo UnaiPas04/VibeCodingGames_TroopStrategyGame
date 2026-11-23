@@ -6,13 +6,15 @@
 | ------ | -------- | ---------- |
 | `src/core/` | Generic helpers reused by every game (loop, canvas, input, audio, sfx, assets, scenes, events, rng, math, storage, debug). Change rarely. | nothing outside `core/` |
 | `src/entities/` | Data shapes + pure functions for one kind of thing (`player.js`, `enemy.js`). | `core/math.js`, `core/rng.js`, `config.js` |
-| `src/systems/` | Rules that act on many entities (`collisions.js`, `spawner.js`, `scoring.js`). Pure. | `entities/`, `core/` pure modules, `config.js` |
+| `src/systems/` | Rules that act on many entities (`match.js`, `spawner.js`, `scoring.js`). Pure. | `entities/`, `core/` pure modules, `physics/`, `config.js` |
+| `src/physics/` | Optional: collision response for solid bodies. Pure. | `core/math.js` |
 | `src/scenes/` | One file per screen/state of the game. Wires input → systems → render. | anything |
 | `src/ui/` | DOM overlay: screens, HUD, menus. | `core/` |
-| `src/net/` | Online rooms (removed in single-player games). | `core/`, `config.js` |
+| `src/net/` | Optional: online rooms, lobby, online scenes. | anything except other optional modules |
+| `vendor/` | Third-party code, vendored with license and README. | nothing (imported only from one wrapper module) |
 | `src/config.js` | Tunables and ids. | nothing |
 
-Dependencies point downward: scenes → systems → entities → core. Never import a scene from a system.
+Dependencies point downward: scenes → systems → entities → core. Never import a scene from a system. Optional modules (`physics/`, `net/`) are used only from lines tagged `[module:<name>]`, so a game can delete them (see `.claude/templates/game-2d/MODULES.md`); follow the same pattern for new optional features.
 
 ## Entities as plain data
 

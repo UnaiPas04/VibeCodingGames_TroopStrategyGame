@@ -2,7 +2,7 @@
 
 import { approach, clamp } from '../core/math.js';
 
-/** @typedef {{x: number, y: number, w: number, h: number, vx: number, vy: number}} Player */
+/** @typedef {{x: number, y: number, w: number, h: number, vx: number, vy: number, mass?: number}} Player */
 
 /**
  * @param {number} x
