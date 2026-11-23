@@ -41,6 +41,7 @@ This branch is the base for 2D web game prototypes. These rules apply to every g
 
 - The game world is drawn on the canvas. Menus, HUD, lobby and settings are HTML/CSS in the `#ui` overlay, styled with CSS custom properties.
 - Menus work with keyboard and gamepad (focus navigation), not only the mouse.
+- No hard-coded UI text: every text is a key in `src/i18n/locales/<language>.json` (all languages), used with `data-i18n` in HTML or `game.t()` in JS. Proper names (the game title) are the only exception.
 - Use the `frontend-design` skill for the visual direction of menus and HUD.
 
 ## Prototyping method

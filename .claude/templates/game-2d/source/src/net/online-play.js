@@ -71,7 +71,7 @@ export function createOnlinePlayScene(game) {
       ...match.players.map((p) => {
         const li = document.createElement('li');
         li.style.setProperty('--player', p.color);
-        li.textContent = `${p.name}${p.id === room.selfId ? ' (you)' : ''}: ${p.score}`;
+        li.textContent = `${p.id === room.selfId ? game.t('net.player-you', { name: p.name }) : p.name}: ${p.score}`;
         return li;
       })
     );

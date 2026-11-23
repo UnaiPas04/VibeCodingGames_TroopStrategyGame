@@ -24,35 +24,37 @@
   </head>
   <body>
     <main id="stage">
-      <canvas id="game" aria-label="Game"></canvas>
+      <canvas id="game" data-i18n-attr="aria-label:game.canvas"></canvas>
 
+      <!-- Texts come from src/i18n/locales/<language>.json through data-i18n attributes. The game name is not translated. -->
       <div id="ui">
         <div class="hud" data-hud hidden>
-          <span>Score <b data-bind="score">0</b></span>
-          <span>Time <b data-bind="time">0</b></span>
+          <span><span data-i18n="hud.score"></span> <b data-bind="score">0</b></span>
+          <span><span data-i18n="hud.time"></span> <b data-bind="time">0</b></span>
         </div>
 
         <section class="screen" data-screen="title" hidden>
           <h1>Demo Game</h1>
-          <p class="hint">Arrows / WASD / gamepad to move. Collect the white squares.</p>
-          <button data-action="play">Play</button>
-          <button data-action="mute" aria-pressed="false">Sound on/off</button>
-          <button data-action="fullscreen">Fullscreen</button>
-          <p class="hint">Best: <span data-bind="best">0</span></p>
+          <p class="hint" data-i18n="title.hint"></p>
+          <button data-action="play" data-i18n="menu.play"></button>
+          <button data-action="mute" aria-pressed="false" data-i18n="menu.sound"></button>
+          <button data-action="fullscreen" data-i18n="menu.fullscreen"></button>
+          <button data-action="language"><span data-i18n="menu.language"></span>: <span data-bind="language"></span></button>
+          <p class="hint"><span data-i18n="hud.best"></span>: <span data-bind="best">0</span></p>
         </section>
 
         <section class="screen" data-screen="pause" hidden>
-          <h2>Paused</h2>
-          <button data-action="resume">Resume</button>
-          <button data-action="restart">Restart</button>
-          <button data-action="menu">Main menu</button>
+          <h2 data-i18n="pause.title"></h2>
+          <button data-action="resume" data-i18n="menu.resume"></button>
+          <button data-action="restart" data-i18n="menu.restart"></button>
+          <button data-action="menu" data-i18n="menu.main-menu"></button>
         </section>
 
         <section class="screen" data-screen="gameover" hidden>
-          <h2>Time's up!</h2>
-          <p>Score <b data-bind="final-score">0</b> · Best <b data-bind="best">0</b></p>
-          <button data-action="restart">Play again</button>
-          <button data-action="menu">Main menu</button>
+          <h2 data-i18n="gameover.title"></h2>
+          <p><span data-i18n="hud.score"></span> <b data-bind="final-score">0</b> · <span data-i18n="hud.best"></span> <b data-bind="best">0</b></p>
+          <button data-action="restart" data-i18n="menu.play-again"></button>
+          <button data-action="menu" data-i18n="menu.main-menu"></button>
         </section>
       </div>
 

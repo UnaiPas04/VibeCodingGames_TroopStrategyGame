@@ -10,6 +10,7 @@
 | `src/physics/` | Optional: collision response for solid bodies. Pure. | `core/math.js` |
 | `src/scenes/` | One file per screen/state of the game. Wires input → systems → render. | anything |
 | `src/ui/` | DOM overlay: screens, HUD, menus. | `core/` |
+| `src/i18n/` | UI languages: `t()`, `data-i18n`, one JSON dictionary per language. | nothing |
 | `src/net/` | Optional: online rooms, lobby, online scenes. | anything except other optional modules |
 | `vendor/` | Third-party code, vendored with license and README. | nothing (imported only from one wrapper module) |
 | `src/config.js` | Tunables and ids. | nothing |

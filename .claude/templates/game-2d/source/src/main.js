@@ -1,5 +1,5 @@
 // Boot: build the shared game context, register scenes and start the loop.
-// URL flags: ?debug  ?seed=123  ?scene=play (skip menus, useful for automated checks)
+// URL flags: ?debug  ?seed=123  ?scene=play (skip menus, useful for automated checks)  ?lang=es
 
 import { GAME_ID, KEYS, PAD, TITLE, VIEW } from './config.js';
 import { createAudio } from './core/audio.js';
@@ -12,6 +12,7 @@ import { createRng } from './core/rng.js';
 import { createScenes } from './core/scenes.js';
 import { playSfx } from './core/sfx.js';
 import { createStorage } from './core/storage.js';
+import { createI18n } from './i18n/i18n.js';
 import { createGameOverScene, createPauseScene, createTitleScene } from './scenes/menus.js';
 import { createPlayScene } from './scenes/play.js';
 import { createUi } from './ui/ui.js';
@@ -23,6 +24,9 @@ document.title = TITLE;
 const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById('game'));
 const view = createView({ canvas, width: VIEW.width, height: VIEW.height, pixelArt: VIEW.pixelArt });
 const seed = params.has('seed') ? Number(params.get('seed')) : Date.now();
+const storage = createStorage(GAME_ID);
+// Load the UI language before anything is shown (only that language's dictionary is fetched).
+const i18n = await createI18n({ storage });
 
 const game = {
   params,
@@ -31,7 +35,10 @@ const game = {
   audio: createAudio(),
   events: createEvents(),
   rng: createRng(seed),
-  storage: createStorage(GAME_ID),
+  storage,
+  i18n,
+  /** Translate a UI text key: game.t('net.status.joined'), game.t('net.results.win', { name }). */
+  t: i18n.t,
   scenes: createScenes(),
   ui: createUi({ root: /** @type {HTMLElement} */ (document.getElementById('ui')), onAction: handleUiAction }),
   debug: /** @type {import('./core/debug.js').DebugHandle} */ (/** @type {unknown} */ (null)),
@@ -51,6 +58,7 @@ game.debug = createDebug({
     stack: game.scenes.stack.map((s) => s.name),
     seed,
     muted: game.audio.muted,
+    language: i18n.language,
     ...game.scenes.current?.debugState?.()
   })
 });
@@ -71,8 +79,14 @@ game.actions = {
     game.audio.muted = !game.audio.muted;
     button.setAttribute('aria-pressed', String(game.audio.muted));
   },
-  fullscreen: () => game.ui.toggleFullscreen()
+  fullscreen: () => game.ui.toggleFullscreen(),
+  language: () => i18n.setLanguage(i18n.nextLanguage())
 };
+
+// Texts built in JS (not marked with data-i18n) refresh here when the language changes.
+const showLanguage = () => game.ui.set('language', i18n.languageName);
+i18n.onChange(showLanguage);
+showLanguage();
 
 /**
  * @param {string} action

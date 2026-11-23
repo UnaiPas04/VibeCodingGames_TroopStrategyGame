@@ -5,18 +5,12 @@ import { VIEW } from '../config.js';
 import { createRoom, joinRoom } from './room.js';
 import { APP_ID, NET, leaveRoom, session } from './session.js';
 
-const MESSAGES = {
-  'room-full': 'That room is full.',
-  'room-not-found': 'Room not found. Check the code, or ask the host to keep the game open.',
-  'host-left': 'The host left the room.',
-  'load-failed': 'Online play unavailable: could not load the network library.',
-  'relay-failed': 'Could not reach the matchmaking relays. Check your connection.',
-  'peer-connect-failed': 'Could not connect to the other player (the network blocks direct connections).'
-};
+/** Error codes with a translated message (key: net.error.<code>). */
+const KNOWN_ERRORS = ['room-full', 'room-not-found', 'host-left', 'load-failed', 'relay-failed', 'peer-connect-failed'];
 
 /** @param {import('../main.js').Game} game */
 export function createLobbyScene(game) {
-  const ui = game.ui;
+  const { ui, t } = game;
   const root = /** @type {HTMLElement} */ (document.querySelector('[data-screen="lobby"]'));
   const $ = (/** @type {string} */ sel) => /** @type {HTMLElement} */ (root.querySelector(sel));
   const nameInput = /** @type {HTMLInputElement} */ ($('[data-field="name"]'));
@@ -27,6 +21,8 @@ export function createLobbyScene(game) {
 
   /** @param {string} text */
   const status = (text) => ui.set('lobby-status', text);
+  /** Translated message for an error code, or the raw message. @param {{code?: string, message?: string}} err */
+  const errorText = (err) => (err.code && KNOWN_ERRORS.includes(err.code) ? t(`net.error.${err.code}`) : err.message ?? '');
 
   function showRoomView() {
     const room = session.room;
@@ -38,7 +34,7 @@ export function createLobbyScene(game) {
       ...room.players.map((p) => {
         const li = document.createElement('li');
         li.style.setProperty('--player', p.color);
-        const tags = [p.id === room.hostId && 'host', p.id === room.selfId && 'you'].filter(Boolean).join(', ');
+        const tags = [p.id === room.hostId && t('net.tag-host'), p.id === room.selfId && t('net.tag-you')].filter(Boolean).join(', ');
         li.textContent = `${p.name}${tags ? ` (${tags})` : ''}${p.ready || p.id === room.hostId ? ' ✓' : ''}`;
         return li;
       })
@@ -71,15 +67,15 @@ export function createLobbyScene(game) {
       if (session.room === room) session.room = null;
       if (reason === 'left') return; // we left on purpose: the caller already changed the screen
       game.scenes.switch(lobby);
-      status(MESSAGES[reason] ?? `Room closed (${reason}).`);
+      status(KNOWN_ERRORS.includes(reason) ? errorText({ code: reason }) : t('net.status.room-closed', { reason }));
     });
-    room.onError((err) => status(MESSAGES[err.code ?? ''] ?? err.message));
+    room.onError((err) => status(errorText(err)));
     // Guests follow the host into the match from any screen (lobby or results).
     room.on('start', (data, from) => {
       if (from === room.hostId) game.scenes.switch(game.sceneList.online, data);
     });
     showRoomView();
-    status(room.isHost ? 'Share the code or the invite link.' : 'Joined. Press Ready.');
+    status(t(room.isHost ? 'net.status.share' : 'net.status.joined'));
   }
 
   /** @param {() => Promise<import('./room.js').Room>} open */
@@ -87,18 +83,17 @@ export function createLobbyScene(game) {
     if (busy) return;
     busy = true;
     game.storage.set('name', nameInput.value.trim());
-    status('Connecting...');
+    status(t('net.status.connecting'));
     try {
       attach(await open());
     } catch (err) {
-      const e = /** @type {{code?: string, message: string}} */ (err);
-      status(MESSAGES[e.code ?? ''] ?? e.message);
+      status(errorText(/** @type {{code?: string, message: string}} */ (err)));
     } finally {
       busy = false;
     }
   }
 
-  const options = () => ({ appId: APP_ID, name: nameInput.value.trim() || 'Player', maxUsers: NET.maxUsers });
+  const options = () => ({ appId: APP_ID, name: nameInput.value.trim() || t('net.default-name'), maxUsers: NET.maxUsers });
 
   const lobby = {
     name: 'lobby',
@@ -131,14 +126,14 @@ export function createLobbyScene(game) {
     actions: {
       'room-create': () => connect(() => createRoom(options())),
       'room-join': () => {
-        if (!codeInput.value.trim()) return status('Type a room code first.');
+        if (!codeInput.value.trim()) return status(t('net.status.type-code'));
         connect(() => joinRoom(codeInput.value, options()));
       },
       'room-copy': async () => {
         if (!session.room) return;
         try {
           await navigator.clipboard.writeText(session.room.inviteUrl);
-          status('Invite link copied.');
+          status(t('net.status.copied'));
         } catch {
           status(session.room.inviteUrl);
         }

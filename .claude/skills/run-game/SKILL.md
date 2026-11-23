@@ -37,7 +37,7 @@ npx playwright cli console                                        # must have no
 npx playwright cli close
 ```
 
-- URL flags: `?debug` (overlay: FPS, frame ms, entities, scene; toggle with the Backquote key), `?seed=N` (reproducible randomness), `?scene=play` (skip menus), `?net=local` (offline multiplayer).
+- URL flags: `?debug` (overlay: FPS, frame ms, entities, scene; toggle with the Backquote key), `?seed=N` (reproducible randomness), `?scene=play` (skip menus), `?net=local` (offline multiplayer), `?lang=es` (UI language; the choice is saved).
 - `window.__game.state` comes from each scene's `debugState()`. Add the values you need to assert (positions, score, lives) to the scene's `debugState()`.
 - `eval` wraps the expression as `() => (expr)`: use one expression (comma operator), never `;`.
 - Click DOM buttons with `eval "document.querySelector('[data-action=play]').click()"` or with `snapshot` + `click <ref>`. The accessibility snapshot shows the HTML UI, never the canvas: use screenshots for the game world.
@@ -50,6 +50,7 @@ npx playwright cli close
 - The changed mechanic visibly works (screenshot) and `window.__game.state` shows the expected values.
 - `npx playwright cli resize 800 450` (or another size): canvas still centered and scaled.
 - Mute and fullscreen buttons work; switching tabs during play opens the pause menu.
+- Every language (`?lang=<code>`): no key names shown instead of text (missing keys also print `[i18n] Missing key` warnings in the console), and longer texts still fit.
 - `window.__game.errors` is `[]` and the console has no errors.
 
 ## 5. Online rooms (games with `src/net/`)

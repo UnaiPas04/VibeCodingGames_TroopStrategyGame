@@ -17,12 +17,12 @@ export function createOnlineResultsScene(game) {
       results = data?.ranking ?? [];
       const best = results[0]?.score ?? 0;
       const winners = results.filter((r) => r.score === best);
-      game.ui.set('results-title', winners.length > 1 ? 'Draw!' : `${winners[0]?.name ?? 'Nobody'} wins!`);
+      game.ui.set('results-title', winners.length === 1 ? game.t('net.results.win', { name: winners[0].name }) : game.t('net.results.draw'));
       list.replaceChildren(
         ...results.map((r) => {
           const li = document.createElement('li');
           li.style.setProperty('--player', r.color);
-          li.textContent = `${r.name}${r.id === session.room?.selfId ? ' (you)' : ''}: ${r.score}`;
+          li.textContent = `${r.id === session.room?.selfId ? game.t('net.player-you', { name: r.name }) : r.name}: ${r.score}`;
           return li;
         })
       );

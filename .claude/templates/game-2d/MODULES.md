@@ -13,6 +13,7 @@ grep -rn "\[module:" source tests     # list every tagged line
 | Module | Files | Required? | Used from |
 | ------ | ----- | --------- | --------- |
 | Core | `src/core/` (loop, canvas, input, audio, sfx, assets, scenes, events, rng, math, storage, debug), `src/ui/ui.js`, `src/main.js`, `index.html`, `style.css`, `tests/core.test.js` | Yes | everywhere |
+| Languages (i18n) | `src/i18n/i18n.js`, `src/i18n/locales/*.json`, `tests/i18n.test.js` | Yes (every UI text goes through it); the number of languages is up to each game | `main.js` (`game.t`, language button), HTML `data-i18n` |
 | Physics | `src/physics/collisions.js`, `tests/physics.test.js` | No: solid bodies that push each other or stop at walls | `src/systems/match.js` `[module:physics]` |
 | Online rooms | `src/net/`, `vendor/trystero/`, `tests/net.test.js` | No: online multiplayer | `src/main.js` `[module:net]` |
 | Demo game | `src/entities/player.js`, `src/systems/items.js`, `src/systems/match.js`, `src/scenes/play.js`, `src/scenes/match-view.js`, `tests/demo.test.js`; online part: `src/net/online-play.js`, `src/net/snapshot.js` | Replace with the real game | scenes |
@@ -34,6 +35,15 @@ Overlap tests for pickups and triggers (`rectsOverlap`, `circlesOverlap`...) sta
 2. Delete the two `[module:net]` lines in `source/src/main.js` (import and `installMultiplayer(game);`).
 3. Optionally delete the `.hud-net`, `.scores`, `.players`, `.code` rules in `style.css`.
 4. Run `npm test` and the `run-game` skill: the title screen no longer shows "Play online".
+
+## Languages
+
+Every UI text is a key: `data-i18n="menu.play"` (or `data-i18n-attr="aria-label:game.canvas"`) in HTML, `game.t('net.results.win', { name })` in JS. Only the chosen language's JSON is downloaded; the choice comes from `?lang=xx`, then the saved setting, then the browser, then the first language.
+
+- **Add a language:** copy `en.json` to `<code>.json`, translate every value (keep `{placeholders}`), add `{ code, name }` to `LANGUAGES` in `i18n.js`. `npm test` fails if a key or placeholder is missing.
+- **Add a text:** add the key to every locale file, then use it.
+- **Single-language game:** keep only that language in `LANGUAGES` and `locales/`, and delete the language button (`data-action="language"`) in `index.html`.
+- Removing the `net` module leaves its `net.*` keys unused; delete them from every locale file if you want.
 
 ## Replace the demo
 

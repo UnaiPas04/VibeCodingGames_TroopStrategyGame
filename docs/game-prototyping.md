@@ -5,7 +5,7 @@ How to prototype 2D web games with Claude Code on the `web-2d-games` branch. Ins
 ## What this branch gives you
 
 - **Rules** (`.claude/rules/web-2d-games.md`, loaded automatically by Claude Code): plain Canvas 2D + ES modules, no engines, no build step; folder layout; definition of done.
-- **Template** (`.claude/templates/game-2d/`, try it with `npm run demo`): a small working game with our own helpers in `src/core/` (fixed-step loop, scaled canvas, input actions for keyboard/touch/gamepad, audio and procedural sound effects, scenes, events, seeded random, storage, debug overlay), HTML menus and HUD, unit tests, and two optional modules: `physics/` (simple 2D collisions: solid bodies that push each other) and `net/` (online rooms: codes and invite links, lobby, host-authoritative matches, results; peer-to-peer over WebRTC with [Trystero](https://github.com/dmotz/trystero), vendored in `source/vendor/`, no server; plus an offline mode for testing). The demo uses everything: collect items against the clock, alone or online with 2–4 players who push each other. Each game keeps only the modules it needs: see [MODULES.md](../.claude/templates/game-2d/MODULES.md).
+- **Template** (`.claude/templates/game-2d/`, try it with `npm run demo`): a small working game with our own helpers in `src/core/` (fixed-step loop, scaled canvas, input actions for keyboard/touch/gamepad, audio and procedural sound effects, scenes, events, seeded random, storage, debug overlay), HTML menus and HUD translated through `src/i18n/` (English and Spanish, one JSON dictionary per language, only the chosen one is loaded), unit tests, and two optional modules: `physics/` (simple 2D collisions: solid bodies that push each other) and `net/` (online rooms: codes and invite links, lobby, host-authoritative matches, results; peer-to-peer over WebRTC with [Trystero](https://github.com/dmotz/trystero), vendored in `source/vendor/`, no server; plus an offline mode for testing). The demo uses everything: collect items against the clock, alone or online with 2–4 players who push each other. Each game keeps only the modules it needs: see [MODULES.md](../.claude/templates/game-2d/MODULES.md).
 - **Third-party code** is allowed only vendored in `source/vendor/<name>/` with its license and author, never loaded from a CDN at runtime.
 - **Skills** in `.claude/skills/`:
 
@@ -45,7 +45,7 @@ Then ask Claude for the game, for example: "Make a snake game where the snake le
 4. **Verify**: Claude plays it through `run-game` (screenshots, state, console). You play it too.
 5. **Decide**: log keep, kill or retune in `docs/game-design.md`.
 
-Useful URL flags: `?debug` (FPS, frame time, entities, errors; toggle with the key left of 1), `?seed=123` (same random sequence), `?scene=play` (skip menus), `?net=local` (online rooms between tabs, offline).
+Useful URL flags: `?debug` (FPS, frame time, entities, errors; toggle with the key left of 1), `?seed=123` (same random sequence), `?scene=play` (skip menus), `?net=local` (online rooms between tabs, offline), `?lang=es` (UI language).
 
 ## Online multiplayer
 
