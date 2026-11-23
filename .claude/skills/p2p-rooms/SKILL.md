@@ -5,12 +5,12 @@ description: Add and use online multiplayer rooms in a 2D web game without a ser
 
 # P2P Rooms
 
-The addon lives in `.claude/templates/addons/p2p-rooms/`. It is the only runtime library allowed (Trystero, pinned, loaded from a CDN only when online play starts).
+Online rooms are part of the game template (`source/src/net/`, `scenes/lobby.js`, `scenes/online-play.js`), installed by `installMultiplayer(game)` in `main.js`. Trystero is the only runtime library allowed: pinned, loaded from a CDN only when online play starts. Try it without a game: `npm run demo` → http://127.0.0.1:5181/?net=local in two tabs.
 
-## Add it to a game
+## Use it in a game
 
-1. Copy `.claude/templates/addons/p2p-rooms/source/` into `source/` (adds `src/net/` and `src/scenes/{lobby,online-play}.js`).
-2. In `source/src/main.js`: `import { installMultiplayer } from './net/install.js';` and call `installMultiplayer(game);` where the comment "Addons are installed here" is.
+1. Check that `source/src/net/` exists and `main.js` calls `installMultiplayer(game)`. If a single-player game removed them, copy `src/net/`, `scenes/lobby.js` and `scenes/online-play.js` back from `.claude/templates/game-2d/source/` and restore the import and call.
+2. Online rooms need nothing else: "Play online" appears on the title screen.
 3. For real-time games, create the loop with `pauseWhenHidden: false` in `main.js` and do not push the pause scene from `visibilitychange` while online: a multiplayer match cannot pause for one player.
 4. Tune `NET` in `src/net/session.js` (`maxUsers`, `sendHz`, colors).
 5. Replace `scenes/online-play.js` (the demo) with the real online gameplay. Keep the lobby.

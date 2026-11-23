@@ -5,8 +5,7 @@ How to prototype 2D web games with Claude Code on the `web-2d-games` branch. Ins
 ## What this branch gives you
 
 - **Rules** (`.claude/rules/web-2d-games.md`, loaded automatically by Claude Code): plain Canvas 2D + ES modules, no engines, no build step; folder layout; definition of done.
-- **Template** (`.claude/templates/game-2d/`): a small working game with our own helpers in `src/core/` (fixed-step loop, scaled canvas, input actions for keyboard/touch/gamepad, audio and procedural sound effects, scenes, events, seeded random, storage, debug overlay), HTML menus and HUD, unit tests.
-- **P2P addon** (`.claude/templates/addons/p2p-rooms/`): online rooms with codes and invite links, lobby, peer-to-peer over WebRTC with [Trystero](https://github.com/dmotz/trystero) (no server), plus an offline mode for testing.
+- **Template** (`.claude/templates/game-2d/`, try it with `npm run demo`): a small working game with our own helpers in `src/core/` (fixed-step loop, scaled canvas, input actions for keyboard/touch/gamepad, audio and procedural sound effects, scenes, events, seeded random, storage, debug overlay), HTML menus and HUD, unit tests, and online rooms: codes and invite links, lobby, peer-to-peer over WebRTC with [Trystero](https://github.com/dmotz/trystero) (no server), plus an offline mode for testing. Single-player games drop the online part.
 - **Skills** in `.claude/skills/`:
 
 | Skill | Use |
@@ -49,7 +48,7 @@ Useful URL flags: `?debug` (FPS, frame time, entities, errors; toggle with the k
 
 ## Online multiplayer
 
-Ask for it in the brief or later ("add online rooms for 2 players"). The `p2p-rooms` skill installs the addon: "Play online" → create a room → share the 5-letter code or the invite link → guests press Ready → host starts.
+Say so in the brief ("2-player online versus"); the `p2p-rooms` skill guides the netcode. The template already has the flow: "Play online" → create a room → share the 5-letter code or the invite link → guests press Ready → host starts.
 
 - Test offline with two tabs and `?net=local`; test for real with two browsers.
 - Other devices need HTTPS: use VS Code port forwarding or the GitHub Pages build (not `http://<LAN-IP>`).

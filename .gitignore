@@ -17,3 +17,7 @@ node_modules/
 test-results/
 playwright-report/
 *.log
+.playwright-mcp/
+# Stray screenshots or recordings from play-testing at the repository root
+/*.png
+/*.webm

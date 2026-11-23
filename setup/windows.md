@@ -70,6 +70,7 @@ Git Bash works the same way with the same commands.
 - The page shows the title screen; Play starts the game, arrows/WASD move, Escape pauses.
 - Add `?debug` to the URL to see FPS and errors (`errors 0`).
 - `npm test` ends with `fail 0`.
+- Template only (no game yet): `npm run demo` and open http://127.0.0.1:5181/; "Play online" → "Create room" works, and with `?net=local` two tabs can join the same room.
 
 ## Troubleshooting
 

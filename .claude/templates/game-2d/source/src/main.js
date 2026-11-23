@@ -15,6 +15,8 @@ import { createStorage } from './core/storage.js';
 import { createGameOverScene, createPauseScene, createTitleScene } from './scenes/menus.js';
 import { createPlayScene } from './scenes/play.js';
 import { createUi } from './ui/ui.js';
+// Online rooms (lobby, 'Play online' button, #room= links). Remove this import and the call below for single-player games.
+import { installMultiplayer } from './net/install.js';
 
 const params = new URLSearchParams(location.search);
 document.title = TITLE;
@@ -109,7 +111,7 @@ document.addEventListener('visibilitychange', () => {
   if (!document.hidden) loop.paused = false;
 });
 
-// Addons are installed here (e.g. the P2P addon adds: installMultiplayer(game);).
+installMultiplayer(game);
 
 const startScene = game.sceneList[params.get('scene') ?? ''] ?? game.sceneList.title;
 game.scenes.switch(startScene);

@@ -16,6 +16,8 @@ Open http://127.0.0.1:5180/ in a browser. Run the tests with `npm test`.
 
 On a fresh clone of the base branch `source/` is still empty: ask Claude to create a game (the `new-2d-game` skill scaffolds it), then run the commands above.
 
+To try the game template without creating a game, run `npm run demo` and open http://127.0.0.1:5181/ (single-player and online rooms; add `?net=local` and use two tabs to test online play offline). No `npm install` is needed for this.
+
 ## Guides per operating system
 
 - [Windows](windows.md)
@@ -30,5 +32,7 @@ On a fresh clone of the base branch `source/` is still empty: ask Claude to crea
 | `npx playwright install chromium` | Downloads the browser used for automated play-testing (once per machine, about 150 MB). |
 | `npm run dev` | Serves `source/` on http://127.0.0.1:5180/ with live reload and no caching. `npm run dev -- --port 5181` uses another port. |
 | `npm test` | Runs the unit tests in `tests/` with the built-in Node test runner. |
+| `npm run demo` | Serves the game template itself (`.claude/templates/game-2d/source/`) on http://127.0.0.1:5181/. Edits there change the template. |
+| `npm run test:demo` | Runs the template's unit tests. |
 
-There are no environment variables and no `.env` file. Game settings live in `source/src/config.js`; online room settings in `source/src/net/session.js` (only in games with online rooms).
+There are no environment variables and no `.env` file. Game settings live in `source/src/config.js`; online room settings in `source/src/net/session.js`.

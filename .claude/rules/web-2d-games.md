@@ -6,7 +6,7 @@ This branch is the base for 2D web game prototypes. These rules apply to every g
 
 - Plain web platform only: Canvas 2D, vanilla JavaScript ES modules, Web Audio API, Gamepad API, Pointer Events, HTML and CSS.
 - No game engines (Phaser, PixiJS, Kaboom, Excalibur, Three.js...), no UI frameworks, no bundler, no build step, no npm runtime dependencies.
-- The only allowed runtime library is Trystero, for multiplayer rooms, loaded through the P2P addon (see the `p2p-rooms` skill).
+- The only allowed runtime library is Trystero, for multiplayer rooms, used only by `source/src/net/transports.js` and loaded on demand when online play starts (see the `p2p-rooms` skill).
 - Always 2D. No WebGL or 3D.
 - Development tools (Node scripts, Playwright, `node --test`) are fine because they never ship with the game.
 - **These rules override any skill**, including third-party ones (`game-engine`, `prototype-fast`, `frontend-design`...), whenever a skill suggests engines, frameworks, npm runtime libraries, a build step, 3D, or a different folder layout.

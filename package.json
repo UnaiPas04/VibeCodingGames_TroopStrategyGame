@@ -7,6 +7,8 @@
   "scripts": {
     "dev": "node tools/dev-server.mjs",
     "test": "node --test tests/",
+    "demo": "node tools/dev-server.mjs --root .claude/templates/game-2d/source --port 5181",
+    "test:demo": "node --test .claude/templates/game-2d/tests/",
     "browsers": "playwright install chromium"
   },
   "devDependencies": {

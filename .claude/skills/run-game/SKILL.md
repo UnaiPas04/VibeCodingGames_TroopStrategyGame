@@ -52,7 +52,7 @@ npx playwright cli close
 - Mute and fullscreen buttons work; switching tabs during play opens the pause menu.
 - `window.__game.errors` is `[]` and the console has no errors.
 
-## 5. Online rooms (games with the P2P addon)
+## 5. Online rooms (games with `src/net/`)
 
 Offline and deterministic, two tabs of one browser:
 

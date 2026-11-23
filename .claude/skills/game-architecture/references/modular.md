@@ -9,7 +9,7 @@
 | `src/systems/` | Rules that act on many entities (`collisions.js`, `spawner.js`, `scoring.js`). Pure. | `entities/`, `core/` pure modules, `config.js` |
 | `src/scenes/` | One file per screen/state of the game. Wires input → systems → render. | anything |
 | `src/ui/` | DOM overlay: screens, HUD, menus. | `core/` |
-| `src/net/` | Online rooms (addon). | `core/`, `config.js` |
+| `src/net/` | Online rooms (removed in single-player games). | `core/`, `config.js` |
 | `src/config.js` | Tunables and ids. | nothing |
 
 Dependencies point downward: scenes → systems → entities → core. Never import a scene from a system.
