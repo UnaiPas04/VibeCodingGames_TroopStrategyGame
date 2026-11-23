@@ -34,5 +34,6 @@ To try the game template without creating a game, run `npm run demo` and open ht
 | `npm test` | Runs the unit tests in `tests/` with the built-in Node test runner. |
 | `npm run demo` | Serves the game template itself (`.claude/templates/game-2d/source/`) on http://127.0.0.1:5181/. Edits there change the template. |
 | `npm run test:demo` | Runs the template's unit tests. |
+| `./tools/new-game.ps1 <name> [-RemoteUrl <url>]` | Windows: creates a new game project next to this folder from the `web-2d-games` branch (see docs/game-prototyping.md). |
 
 There are no environment variables and no `.env` file. Game settings live in `source/src/config.js`; online room settings in `source/src/net/session.js`.

@@ -25,6 +25,14 @@ Third-party skills are pinned in `skills-lock.json`; restore them with `npx skil
 
 ## Start a new game project
 
+Fastest way, from a clone of this base repository (Windows PowerShell): create an empty repository on GitHub, then
+
+```powershell
+./tools/new-game.ps1 my-game -RemoteUrl https://github.com/<user>/my-game.git
+```
+
+It clones the branch next to the base folder, renames the branch to `main`, keeps the base as the `base` remote, pushes to the new repository and runs `npm install` (`-SkipInstall` to skip; omit `-RemoteUrl` to add it later). The manual steps are:
+
 ```bash
 git clone -b web-2d-games --single-branch <base-repository-url> my-game
 cd my-game
