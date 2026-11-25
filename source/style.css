@@ -377,6 +377,24 @@ button.small {
   font-size: 9px;
 }
 
+.popup.compact .stepper {
+  justify-content: center;
+  gap: 4px;
+}
+
+/* Move preview next to the pointer. */
+.move-hint {
+  position: absolute;
+  padding: 3px 8px;
+  border-radius: var(--radius);
+  background: rgba(0, 0, 0, 0.8);
+  color: var(--text);
+  font-size: 12px;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 6;
+}
+
 /* Narrow screens: the panel goes below the board. */
 @media (max-width: 800px) {
   :root {

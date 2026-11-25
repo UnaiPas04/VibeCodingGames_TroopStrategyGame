@@ -2,14 +2,14 @@
 // checkAction() returns null or an i18n error key; applyAction() applies a valid action and returns
 // a result for the log. Missing resources are paid with gold, 1:1, automatically (except port trades). Trial rules T2, T4-T8; costs in config.js (COSTS).
 
-import { CONQUER_SETTLEMENT_INNER, COSTS, GOLD, MOVES, PORT_TRADE, RESOURCES } from '../config.js';
-import { areNeighbors, cellCorners, cellDistance, isCell, isPoint, neighborPairsAt, pointCells, pointKind, pointNeighbors, sharedSideEnds } from './board.js';
+import { CONQUER_SETTLEMENT_INNER, COSTS, GOLD, MOVE, PORT_TRADE, RESOURCES } from '../config.js';
+import { areNeighbors, cellCorners, cellDistance, isCell, isPoint, neighborPairsAt, pointCells, pointKind, pointNeighbors } from './board.js';
 import { buildingBonus, resolveFight } from './combat.js';
 import { buildingAt, canPay, canPayWithGold, freeSlots, heldCellsAround, holds, pay, payWithGold, touchesOwnCastle, troopsOf } from './state.js';
 import { claimGreyTowers } from './towers.js';
 
 /**
- * @typedef {{type: 'cart' | 'horse', from: number, to: number}
+ * @typedef {{type: 'move', from: number, to: number, count: number}
  *   | {type: 'recruit', cell: number}
  *   | {type: 'attack', from: number, target: number, defender: number, count: number}
  *   | {type: 'build-settlement', point: number}
@@ -30,10 +30,8 @@ import { claimGreyTowers } from './towers.js';
  */
 export function costOf(state, action) {
   switch (action.type) {
-    case 'cart':
-      return COSTS.cart;
-    case 'horse':
-      return COSTS.horse;
+    case 'move':
+      return moveCost(action.count, isCell(action.from) && isCell(action.to) ? cellDistance(action.from, action.to) : 0);
     case 'recruit':
       return COSTS.recruit;
     case 'attack':
@@ -88,14 +86,24 @@ export function meetsConquerCondition(/** @type {GameState} */ state, /** @type 
 }
 
 /**
- * Troops a cart or horse move carries: up to its limit, as many as the source has and the destination fits.
+ * Grain to move some troops some cells: troops x cells x MOVE.grainPerTroopCell, rounded up.
+ * @param {number} count
+ * @param {number} cells
+ * @returns {Record<string, number>}
+ */
+export function moveCost(count, cells) {
+  return { grain: Math.ceil(count * cells * MOVE.grainPerTroopCell) };
+}
+
+/**
+ * Troops a move of `wanted` troops actually carries: no more than the source has or the destination fits.
  * @param {GameState} state
- * @param {'cart' | 'horse'} type
+ * @param {number} wanted
  * @param {number} from
  * @param {number} to
  */
-export function moveCount(state, type, from, to) {
-  return Math.max(0, Math.min(MOVES[type].troops, troopsOf(state, from, state.current), freeSlots(state, to)));
+export function fittingCount(state, wanted, from, to) {
+  return Math.max(0, Math.min(wanted, troopsOf(state, from, state.current), freeSlots(state, to)));
 }
 
 /** @param {unknown} n */
@@ -115,12 +123,12 @@ export function checkAction(state, action) {
   const affordable = () => (canPayWithGold(purse, costOf(state, action)) ? null : 'error.cannot-pay');
 
   switch (action.type) {
-    case 'cart':
-    case 'horse': {
+    case 'move': {
       if (!isCell(action.from) || !isCell(action.to) || action.from === action.to) return 'error.invalid-target';
-      if (cellDistance(action.from, action.to) !== MOVES[action.type].cells) return action.type === 'cart' ? 'error.not-neighbor' : 'error.horse-distance';
-      if (troopsOf(state, action.from, me) < 1) return 'error.not-enough-troops';
-      if (freeSlots(state, action.to) < 1) return 'error.cell-full';
+      if (cellDistance(action.from, action.to) > MOVE.maxCells) return 'error.too-far';
+      if (!isCount(action.count)) return 'error.bad-count';
+      if (troopsOf(state, action.from, me) < action.count) return 'error.not-enough-troops';
+      if (freeSlots(state, action.to) < action.count) return 'error.cell-full';
       return affordable();
     }
     case 'recruit':
@@ -208,12 +216,11 @@ export function applyAction(state, action, rng) {
   /** @type {Record<string, any>} */
   let result;
   switch (action.type) {
-    case 'cart':
-    case 'horse': {
-      const count = moveCount(state, action.type, action.from, action.to);
+    case 'move': {
+      const { count } = action;
       state.cells[action.from].troops[me] -= count;
       state.cells[action.to].troops[me] += count;
-      result = { from: action.from, to: action.to, count };
+      result = { from: action.from, to: action.to, count, cells: cellDistance(action.from, action.to) };
       break;
     }
     case 'recruit':
@@ -259,14 +266,14 @@ export function applyAction(state, action, rng) {
 }
 
 /**
- * Building bonuses of both sides: the 4 corners of the cell (inside), or the 2 ends of the shared side (outside).
+ * Building bonuses of both sides: their own buildings on the 4 corners of the attacked cell,
+ * whether the attack comes from inside or from a neighboring cell.
  * @param {GameState} state
- * @param {number} from
  * @param {number} target
  * @param {number} defender
  */
-export function attackBonuses(state, from, target, defender) {
-  const points = from === target ? cellCorners(target) : sharedSideEnds(from, target);
+export function attackBonuses(state, target, defender) {
+  const points = cellCorners(target);
   return { attackerBonus: buildingBonus(state.buildings, state.current, points), defenderBonus: buildingBonus(state.buildings, defender, points) };
 }
 
@@ -282,7 +289,7 @@ function attack(state, { from, target, defender, count }, rng) {
   const fight = {
     attackerTroops: count,
     defenderTroops,
-    ...attackBonuses(state, from, target, defender),
+    ...attackBonuses(state, target, defender),
     attackerDie: rng.int(1, 6),
     defenderDie: rng.int(1, 6)
   };

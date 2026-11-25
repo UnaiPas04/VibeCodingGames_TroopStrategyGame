@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BOARD, COSTS, RESOURCES, TROOPS } from '../source/src/config.js';
 import { createRng } from '../source/src/core/rng.js';
-import { applyAction, checkAction, portGoods } from '../source/src/systems/actions.js';
+import { applyAction, checkAction, fittingCount, moveCost, portGoods } from '../source/src/systems/actions.js';
 import {
   BASE_CELLS,
   CELL_COUNT,
@@ -157,38 +157,38 @@ test('tower cells hold 4 troops at most', () => {
   const state = setup(2, rich);
   put(state, BASE_CELLS[0], [0, 3]);
   put(state, BASE_CELLS[0] + 1, [2, 0]);
-  const r = applyAction(state, { type: 'cart', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0] }, fixedDice([]));
-  assert.equal(r.count, 1, 'only one place left');
-  assert.equal(checkAction(state, { type: 'cart', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0] }), 'error.cell-full');
+  assert.equal(checkAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 2 }), 'error.cell-full', 'only one place left');
+  applyAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 1 }, fixedDice([]));
+  assert.equal(checkAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 1 }), 'error.cell-full');
 });
 
 // ---- Movement ----
 
-test('cart: up to 4 troops one cell for 1 wood + 1 grain, all of them if fewer', () => {
-  const state = setup(2, { wood: 5, grain: 5 });
-  put(state, 14, [6, 0]);
-  assert.equal(checkAction(state, { type: 'cart', from: 14, to: 16 }), 'error.not-neighbor');
-  const r = applyAction(state, { type: 'cart', from: 14, to: 15 }, fixedDice([]));
-  assert.equal(r.count, 4);
-  assert.deepEqual([state.cells[14].troops[0], state.cells[15].troops[0]], [2, 4]);
-  assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.grain], [4, 4]);
-  applyAction(state, { type: 'cart', from: 14, to: 13 }, fixedDice([]));
-  assert.equal(state.cells[13].troops[0], 2, 'fewer troops: moves them all');
-  put(state, 21, [0, 6]);
-  assert.equal(applyAction(state, { type: 'cart', from: 15, to: 21 }, fixedDice([])).count, 2, 'only as many as fit');
-  assert.equal(checkAction(state, { type: 'cart', from: 15, to: 21 }), 'error.cell-full');
+test('move cost: half a grain per troop and cell, rounded up', () => {
+  const cases = [
+    [1, 1, 1],
+    [2, 1, 1],
+    [3, 1, 2],
+    [8, 2, 8],
+    [3, 3, 5]
+  ];
+  for (const [count, cells, grain] of cases) assert.deepEqual(moveCost(count, cells), { grain }, `${count} troops ${cells} cells`);
 });
 
-test('horse: up to 2 troops exactly 2 cells for 2 grain, never 1 cell', () => {
-  const state = setup(2, { grain: 4 });
-  put(state, 14, [3, 0]);
-  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 15 }), 'error.horse-distance');
-  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 27 }), 'error.horse-distance'); // 3 steps
-  const r = applyAction(state, { type: 'horse', from: 14, to: 21 }, fixedDice([])); // diagonal: 2 steps
-  assert.equal(r.count, 2);
-  assert.equal(state.players[0].resources.grain, 2);
-  applyAction(state, { type: 'horse', from: 14, to: 16 }, fixedDice([]));
-  assert.equal(state.cells[16].troops[0], 1, 'a single troop rides alone');
+test('move: pick the troops and the distance, pay grain only', () => {
+  const state = setup(2, { wood: 0, grain: 9 });
+  put(state, 14, [6, 0]);
+  const r = applyAction(state, { type: 'move', from: 14, to: 16, count: 4 }, fixedDice([])); // 2 cells
+  assert.deepEqual([r.count, r.cells], [4, 2]);
+  assert.deepEqual([state.cells[14].troops[0], state.cells[16].troops[0]], [2, 4]);
+  assert.equal(state.players[0].resources.grain, 9 - 4);
+  assert.equal(checkAction(state, { type: 'move', from: 14, to: 35, count: 1 }), null, 'any distance: (2,2) -> (5,5) is 6 cells');
+  assert.deepEqual(moveCost(1, 6), { grain: 3 });
+  assert.equal(checkAction(state, { type: 'move', from: 14, to: 15, count: 3 }), 'error.not-enough-troops');
+  assert.equal(checkAction(state, { type: 'move', from: 14, to: 15, count: 0 }), 'error.bad-count');
+  put(state, 20, [0, 7]);
+  assert.equal(checkAction(state, { type: 'move', from: 14, to: 20, count: 2 }), 'error.cell-full');
+  assert.equal(fittingCount(state, 2, 14, 20), 1, 'the board offers only what fits');
 });
 
 test('recruit: only in a cell touching one of your castles', () => {
@@ -233,16 +233,17 @@ test('attack outside: only from a held cell, all troops can be committed', () =>
   assert.equal(state.players[0].resources.grain, 19, 'outside costs iron and grain');
 });
 
-test('attack outside: only the buildings on the shared side count, each for its owner', () => {
+test('attack outside: the buildings of the attacked cell count, each for its owner', () => {
   const state = setup(2, rich);
   put(state, 14, [2, 0]);
-  put(state, 15, [0, 2]);
-  state.buildings[17] = { type: 'castle', owner: 1 }; // shared side end: +2 for the defender
-  state.buildings[16] = { type: 'castle', owner: 1 }; // (2,2): corner of cell 14, not on the shared side
-  state.buildings[25] = { type: 'settlement', owner: 0 }; // corner of 15, not on the shared side
+  put(state, 15, [0, 2]); // attacked cell 15: corners 17, 18, 25, 24
+  state.buildings[17] = { type: 'castle', owner: 1 }; // corner of 15 on the shared side: +2 for the defender
+  state.buildings[18] = { type: 'castle', owner: 1 }; // corner of 15 away from the attacker: +2 for the defender
+  state.buildings[16] = { type: 'castle', owner: 1 }; // corner of cell 14 only: does not count
+  state.buildings[25] = { type: 'settlement', owner: 0 }; // attacker's building on a corner of 15: +1
   const r = applyAction(state, { type: 'attack', from: 14, target: 15, defender: 1, count: 2 }, fixedDice([6, 1]));
-  assert.equal(r.defenderBonus, 2);
-  assert.equal(r.attackerBonus, 0);
+  assert.equal(r.defenderBonus, 4);
+  assert.equal(r.attackerBonus, 1);
 });
 
 // ---- Buildings ----
@@ -322,7 +323,7 @@ test('missing cards are paid with gold automatically', () => {
   const r = applyAction(state, { type: 'build-settlement', point: P }, fixedDice([]));
   assert.equal(r.goldUsed, 1);
   assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.stone, state.players[0].resources.gold], [0, 0, 0]);
-  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 16 }), 'error.cannot-pay', 'no gold left');
+  assert.equal(checkAction(state, { type: 'move', from: 14, to: 16, count: 1 }), 'error.cannot-pay', 'no gold left');
 });
 
 test('gold exchange: 1 gold for 1 resource of your choice', () => {

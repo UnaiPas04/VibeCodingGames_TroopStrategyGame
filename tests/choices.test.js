@@ -6,7 +6,7 @@ import { BOARD_VIEW } from '../source/src/config.js';
 import { createRng } from '../source/src/core/rng.js';
 import { cellCenter, hitTest, pointPos, troopSlot } from '../source/src/scenes/board-layout.js';
 import { portTradeOptions } from '../source/src/systems/actions.js';
-import { activePoints, cellChoices, moveTypeFor, pointChoices, settlementDestinations, sourceTargets } from '../source/src/systems/choices.js';
+import { activePoints, cellChoices, moveTo, pointChoices, settlementDestinations, sourceTargets } from '../source/src/systems/choices.js';
 import { createState } from '../source/src/systems/state.js';
 
 function setup() {
@@ -20,23 +20,25 @@ function setup() {
 const kinds = (/** @type {import('../source/src/systems/choices.js').Choice[]} */ list) =>
   list.map((c) => (c.kind === 'action' ? c.action.type : c.kind));
 
-test('move type comes from the distance: next cell = cart, 2 steps = horse', () => {
-  assert.equal(moveTypeFor(14, 15), 'cart');
-  assert.equal(moveTypeFor(14, 21), 'horse');
-  assert.equal(moveTypeFor(14, 16), 'horse');
-  assert.equal(moveTypeFor(14, 17), null);
+test('a click on a destination moves the picked troops, fewer if fewer fit, at any distance', () => {
+  const state = setup();
+  state.cells[14].troops[0] = 5;
+  state.cells[15].troops[1] = 6;
+  assert.deepEqual(moveTo(state, 14, 16, 4), { type: 'move', from: 14, to: 16, count: 4 });
+  assert.deepEqual(moveTo(state, 14, 15, 4), { type: 'move', from: 14, to: 15, count: 2 }, 'only 2 places left');
+  assert.deepEqual(moveTo(state, 14, 31, 1), { type: 'move', from: 14, to: 31, count: 1 }, '4 cells away');
 });
 
 test('with a source selected, a click moves or attacks', () => {
   const state = setup();
   state.cells[14].troops[0] = 3;
   state.cells[15].troops[1] = 1;
-  assert.deepEqual(kinds(cellChoices(state, 14, 15)), ['cart', 'attack'], 'enemy next to a held cell');
-  assert.deepEqual(kinds(cellChoices(state, 14, 16)), ['horse']);
-  assert.deepEqual(kinds(cellChoices(state, 14, 17)), []);
+  assert.deepEqual(kinds(cellChoices(state, 14, 15, 3)), ['move', 'attack'], 'enemy next to a held cell');
+  assert.deepEqual(kinds(cellChoices(state, 14, 16, 3)), ['move']);
+  assert.deepEqual(kinds(cellChoices(state, 14, 35, 3)), ['move'], 'any distance');
   state.cells[14].troops[1] = 1;
   assert.deepEqual(kinds(cellChoices(state, 14, 14)), ['attack'], 'inside attack on the selected cell');
-  const targets = sourceTargets(state, 14);
+  const targets = sourceTargets(state, 14, 3);
   assert.ok(targets.moves.includes(15) && targets.moves.includes(16));
   assert.ok(targets.attacks.includes(14));
   assert.ok(!targets.attacks.includes(15), 'outside attacks need a held cell');

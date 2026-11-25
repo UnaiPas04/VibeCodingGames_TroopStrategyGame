@@ -1,16 +1,20 @@
 // Hot-seat match: every player takes turns on the same screen.
-// Plays need as few clicks as possible: click one of your cells, then a highlighted cell (cart next to it,
-// horse 2 steps away, red = attack; click it again to cancel); click an intersection circle to build.
-// Choices open in a popup next to the click; a selected cell's own choices (recruit, attack inside)
-// show in a compact menu on the cell itself. The rules live in systems/ (pure); this scene wires input, log, sounds and drawing.
+// Plays need as few clicks as possible: click one of your cells (all its troops are picked; change the
+// number with the mouse wheel or the − + buttons on the cell), then click where they go (up to
+// MOVE.maxCells away): a box shows the price, and Accept (or a second click on the same cell) moves;
+// clicking another cell changes the destination. Red cells can be attacked; click the selected cell
+// again to cancel. Click an
+// intersection circle to build. Choices open in a popup next to the click. The rules live in systems/
+// (pure); this scene wires input, log, sounds and drawing.
 
 import { AUTO_ROLL, BOARD_VIEW, LOG_LINES, VIEW } from '../config.js';
-import { applyAction, attackBonuses, checkAction } from '../systems/actions.js';
-import { activePoints, cellChoices, moveTypeFor, pointChoices, settlementDestinations, sourceTargets } from '../systems/choices.js';
+import { applyAction, attackBonuses, checkAction, costOf } from '../systems/actions.js';
+import { cellDistance } from '../systems/board.js';
+import { activePoints, cellChoices, moveTo, pointChoices, settlementDestinations, sourceTargets } from '../systems/choices.js';
 import { troopsOf } from '../systems/state.js';
 import { endTurn, newGame, rollDice } from '../systems/turn.js';
-import { formatMessage, renderPanel } from '../ui/panel.js';
-import { renderPopup } from '../ui/popup.js';
+import { costText, formatMessage, renderPanel } from '../ui/panel.js';
+import { renderHint, renderPopup } from '../ui/popup.js';
 import { cellCenter, cellRect, hitTest, pointPos } from './board-layout.js';
 import { drawBoard } from './board-view.js';
 
@@ -21,15 +25,17 @@ import { drawBoard } from './board-view.js';
 export function createPlayScene(game) {
   const panelRoot = /** @type {HTMLElement} */ (document.getElementById('panel'));
   const popupRoot = /** @type {HTMLElement} */ (document.getElementById('popup'));
+  const hintRoot = /** @type {HTMLElement} */ (document.getElementById('hint'));
   /** @type {import('../systems/state.js').GameState} */
   let state; // created in enter()
   let playerCount = 2;
 
   /** No highlights. */
-  const noHighlights = () => ({ moves: /** @type {number[]} */ ([]), farMoves: /** @type {number[]} */ ([]), attacks: /** @type {number[]} */ ([]), points: /** @type {number[]} */ ([]) });
+  const noHighlights = () => ({ moves: /** @type {number[]} */ ([]), attacks: /** @type {number[]} */ ([]), points: /** @type {number[]} */ ([]) });
 
   const ctl = {
     /** Selected cell with your troops. @type {number | null} */ source: null,
+    /** Troops picked to move from the selected cell. */ count: 1,
     /** Settlement being moved. @type {number | null} */ sourcePoint: null,
     /** @type {import('../ui/popup.js').PopupModel | null} */ popup: null,
     /** Game position the popup points at. */ popupAt: { x: 0, y: 0 },
@@ -37,6 +43,7 @@ export function createPlayScene(game) {
     /** @type {Message | null} */ message: null,
     /** @type {Message[]} */ log: [],
     /** @type {{cell: number | null, point: number | null}} */ hover: { cell: null, point: null },
+    /** Last move preview shown, to update the hint only when it changes. */ hintKey: '',
     hl: noHighlights()
   };
 
@@ -53,31 +60,62 @@ export function createPlayScene(game) {
     if (ctl.log.length > LOG_LINES) ctl.log.splice(0, ctl.log.length - LOG_LINES);
   }
 
-  /** Position inside #ui (CSS pixels) of a point in game units; menus sit just right of it, compact ones exactly on it. */
-  function toUi(/** @type {{x: number, y: number}} */ g) {
+  /** Position inside #ui (CSS pixels) of a point in game units, moved by `offset` CSS pixels. */
+  function toUi(/** @type {{x: number, y: number}} */ g, offset = { x: 0, y: 0 }) {
     const canvas = game.view.canvas.getBoundingClientRect();
     const ui = /** @type {HTMLElement} */ (popupRoot.parentElement).getBoundingClientRect();
-    const offset = ctl.popup?.kind === 'menu' && ctl.popup.compact ? { x: 0, y: 0 } : { x: 16, y: -16 };
     return {
       left: canvas.left - ui.left + (g.x / VIEW.width) * canvas.width + offset.x,
       top: canvas.top - ui.top + (g.y / VIEW.height) * canvas.height + offset.y
     };
   }
 
+  /** Troops of the active player in the selected cell. */
+  const sourceTroops = () => (ctl.source === null ? 0 : troopsOf(state, ctl.source, state.current));
+
   /** Recompute highlights and redraw the panel and the popup after any change. */
   function refresh() {
-    const acting = state.phase === 'actions';
     ctl.hl = noHighlights();
-    if (acting) {
+    if (ctl.source !== null && sourceTroops() === 0) ctl.source = null;
+    if (ctl.source !== null) ctl.count = Math.max(1, Math.min(ctl.count, sourceTroops()));
+    if (ctl.popup?.kind === 'menu' && ctl.popup.compact) Object.assign(ctl.popup, { count: ctl.count, max: sourceTroops() });
+    if (ctl.popup?.kind === 'move') {
+      // The pending move follows the troop count; it closes if it is no longer possible.
+      const action = moveTo(state, ctl.popup.from, ctl.popup.to, ctl.count);
+      ctl.popup = action && action.type === 'move' ? { ...ctl.popup, count: action.count, max: sourceTroops() } : null;
+    }
+    if (state.phase === 'actions') {
       ctl.hl.points = ctl.sourcePoint !== null ? settlementDestinations(state, ctl.sourcePoint) : activePoints(state);
-      if (ctl.source !== null) {
-        const targets = sourceTargets(state, ctl.source);
-        ctl.hl.attacks = targets.attacks;
-        for (const cell of targets.moves) (moveTypeFor(ctl.source, cell) === 'cart' ? ctl.hl.moves : ctl.hl.farMoves).push(cell);
-      }
+      if (ctl.source !== null) Object.assign(ctl.hl, sourceTargets(state, ctl.source, ctl.count));
     }
     renderPanel(panelRoot, { state, infoCell: ctl.infoCell, message: ctl.message, log: ctl.log }, game.t);
-    renderPopup(popupRoot, ctl.popup, toUi(ctl.popupAt), state, game.t);
+    const compact = ctl.popup?.kind === 'menu' && ctl.popup.compact;
+    renderPopup(popupRoot, ctl.popup, toUi(ctl.popupAt, compact ? undefined : { x: 16, y: -16 }), state, game.t);
+    ctl.hintKey = '-'; // force the move preview to refresh (or hide) on the next update
+  }
+
+  /** Small text next to the pointer: what clicking the hovered cell would move and cost. */
+  function updateHint() {
+    const cell = ctl.hover.cell;
+    const blocked = ctl.popup && !(ctl.popup.kind === 'menu' && ctl.popup.compact); // other menus hide the preview
+    const action = ctl.source !== null && cell !== null && !blocked && ctl.hl.moves.includes(cell) ? moveTo(state, ctl.source, cell, ctl.count) : null;
+    const key = action ? `${cell}:${ctl.count}:${game.input.pointer.x | 0}:${game.input.pointer.y | 0}` : '';
+    if (key === ctl.hintKey) return;
+    ctl.hintKey = key;
+    if (!action || action.type !== 'move') return renderHint(hintRoot, null, { left: 0, top: 0 });
+    const text = game.t('move.preview', { count: action.count, cells: cellDistance(action.from, action.to), cost: costText(game.t, costOf(state, action)) });
+    renderHint(hintRoot, text, toUi(game.input.pointer, { x: 14, y: 14 }));
+  }
+
+  /** The move being chosen (open move box, or a move target under the pointer), for the ghost troops. */
+  function movePreview() {
+    if (ctl.source === null && ctl.popup?.kind !== 'move') return null;
+    const pending = ctl.popup?.kind === 'move' ? ctl.popup : null;
+    const from = pending ? pending.from : /** @type {number} */ (ctl.source);
+    const to = pending ? pending.to : ctl.hover.cell;
+    if (to === null || (!pending && (ctl.popup?.kind === 'attack' || !ctl.hl.moves.includes(to)))) return null;
+    const action = moveTo(state, from, to, ctl.count);
+    return action && action.type === 'move' ? { from, to, count: action.count, player: state.current } : null;
   }
 
   /** @param {import('../systems/turn.js').TurnStart} start */
@@ -98,9 +136,8 @@ export function createPlayScene(game) {
     ctl.message = null;
     const player = r.player;
     switch (r.type) {
-      case 'cart':
-      case 'horse':
-        log(r.type === 'cart' ? 'log.cart' : 'log.horse', { player, count: r.count });
+      case 'move':
+        log('log.move', { player, count: r.count, cells: r.cells });
         game.events.emit('troops:moved');
         break;
       case 'recruit':
@@ -146,18 +183,61 @@ export function createPlayScene(game) {
     return true;
   }
 
-  /** Keep the selection on the cell the troops arrived at (or drop it if none of yours are left there). */
-  function followTo(/** @type {number} */ cell) {
-    ctl.source = troopsOf(state, cell, state.current) > 0 ? cell : null;
+  /**
+   * Select one of your cells with all its troops picked. A compact menu on the lower part of the cell
+   * holds the troop count (− +) and the cell's own choices (recruit, attack inside); it never blocks
+   * the neighbor cells.
+   * @param {number} cell
+   */
+  function select(cell) {
+    ctl.source = cell;
     ctl.infoCell = cell;
+    ctl.count = troopsOf(state, cell, state.current);
+    const own = cellChoices(state, cell, cell);
+    ctl.popup = null;
+    if (own.length === 0 && ctl.count < 2) return;
+    const rect = cellRect(cell);
+    ctl.popup = { kind: 'menu', choices: own, compact: true, count: ctl.count, max: ctl.count };
+    ctl.popupAt = { x: rect.x + 4, y: rect.y + rect.h * 0.45 };
+  }
+
+  /** After a move: keep the source if troops are left there (to split them), otherwise follow the troops. */
+  function afterMove(/** @type {number} */ from, /** @type {number} */ to) {
+    if (troopsOf(state, from, state.current) > 0) select(from);
+    else select(to);
+  }
+
+  /**
+   * Show the price of moving the picked troops to `to`, with Accept. The box does not block the board:
+   * another click picks another destination.
+   * @param {number} from
+   * @param {number} to
+   */
+  function openMove(from, to) {
+    ctl.popup = { kind: 'move', from, to, count: ctl.count, max: sourceTroops() };
+    ctl.popupAt = besideCell(to);
+  }
+
+  /** Move the picked troops (as many as fit) from `from` to `to`. */
+  function confirmMove(/** @type {number} */ from, /** @type {number} */ to) {
+    ctl.popup = null;
+    const action = moveTo(state, from, to, ctl.count);
+    if (!action) return;
+    if (perform(action)) afterMove(from, to);
+  }
+
+  /** Point just right of a cell, so a box placed there leaves the cell (and its ghost troops) visible. */
+  function besideCell(/** @type {number} */ cell) {
+    const r = cellRect(cell);
+    return { x: r.x + r.w - 12, y: r.y + 14 };
   }
 
   /** @param {Extract<Choice, {kind: 'attack'}>} choice */
   function openAttack(choice) {
     const defender = choice.enemies[0];
     const max = troopsOf(state, choice.from, state.current);
-    ctl.popup = { ...choice, defender, count: max, max, ...attackBonuses(state, choice.from, choice.target, defender) };
-    ctl.popupAt = cellCenter(choice.target);
+    ctl.popup = { ...choice, defender, count: Math.min(ctl.count, max), max, ...attackBonuses(state, choice.target, defender) };
+    ctl.popupAt = besideCell(choice.target);
   }
 
   /** @param {Choice} choice */
@@ -171,7 +251,8 @@ export function createPlayScene(game) {
     }
     const { action } = choice;
     if (!perform(action)) return;
-    if (action.type === 'cart' || action.type === 'horse') followTo(action.to);
+    if (action.type === 'move') afterMove(action.from, action.to);
+    if (action.type === 'recruit' && ctl.source !== null) select(ctl.source);
   }
 
   /** @param {Choice[]} choices @param {{x: number, y: number}} at */
@@ -180,27 +261,14 @@ export function createPlayScene(game) {
     ctl.popupAt = at;
   }
 
-  /**
-   * Select one of your cells. Its own extra choices (recruit, attack inside) show in a compact menu
-   * over the lower part of the cell, so the neighbor cells stay clickable.
-   * @param {number} cell
-   */
-  function select(cell) {
-    ctl.source = cell;
-    ctl.infoCell = cell;
-    const own = cellChoices(state, cell, cell);
-    if (own.length === 0) return;
-    const rect = cellRect(cell);
-    ctl.popup = { kind: 'menu', choices: own, compact: true };
-    ctl.popupAt = { x: rect.x + 4, y: rect.y + rect.h * 0.45 };
-  }
-
   /** @param {{cell: number | null, point: number, pointDistance: number}} hit */
   function onBoardClick(hit) {
     if (ctl.popup) {
-      const compact = ctl.popup.kind === 'menu' && ctl.popup.compact;
+      const pending = ctl.popup.kind === 'move' ? ctl.popup : null;
+      const passive = pending || (ctl.popup.kind === 'menu' && ctl.popup.compact);
       ctl.popup = null; // a click outside the popup closes it
-      if (!compact) return; // a compact menu does not block the board: the click also plays
+      if (pending && hit.cell === pending.to) return confirmMove(pending.from, pending.to); // second click on the destination accepts
+      if (!passive) return; // compact and move boxes do not block the board: the click also plays
     }
     ctl.message = null;
     if (state.phase !== 'actions') {
@@ -226,11 +294,11 @@ export function createPlayScene(game) {
       ctl.source = null; // clicking the selected cell again always cancels the selection
       return;
     }
-    const choices = cellChoices(state, ctl.source, cell);
+    const choices = cellChoices(state, ctl.source, cell, ctl.count);
     if (ctl.source !== null && choices.length === 1) {
       const [only] = choices;
       // The most common play, a move, needs no confirmation.
-      if (only.kind === 'action' && (only.action.type === 'cart' || only.action.type === 'horse')) return runChoice(only);
+      if (only.kind === 'action' && only.action.type === 'move') return openMove(only.action.from, only.action.to);
       if (only.kind === 'attack') return openAttack(only);
     }
     if (choices.length > 0 && (ctl.source !== null || troopsOf(state, cell, me) === 0)) return openMenu(choices, cellCenter(cell));
@@ -281,6 +349,12 @@ export function createPlayScene(game) {
       const choice = ctl.popup.choices[Number(button.dataset.index)];
       if (choice) runChoice(choice);
     },
+    'move-count': (button) => {
+      ctl.count += Number(button.dataset.delta);
+    },
+    'confirm-move': () => {
+      if (ctl.popup?.kind === 'move') confirmMove(ctl.popup.from, ctl.popup.to);
+    },
     count: (button) => {
       if (ctl.popup?.kind !== 'attack') return;
       ctl.popup.count = Math.max(1, Math.min(ctl.popup.max, ctl.popup.count + Number(button.dataset.delta)));
@@ -288,13 +362,16 @@ export function createPlayScene(game) {
     defender: (button) => {
       if (ctl.popup?.kind !== 'attack') return;
       const defender = Number(button.dataset.player);
-      ctl.popup = { ...ctl.popup, defender, ...attackBonuses(state, ctl.popup.from, ctl.popup.target, defender) };
+      ctl.popup = { ...ctl.popup, defender, ...attackBonuses(state, ctl.popup.target, defender) };
+    },
+    cancel: () => {
+      ctl.popup = null;
     },
     fight: () => {
       if (ctl.popup?.kind !== 'attack') return;
       const { from, target, defender, count } = ctl.popup;
       ctl.popup = null;
-      if (perform({ type: 'attack', from, target, defender, count })) followTo(from);
+      if (perform({ type: 'attack', from, target, defender, count }) && troopsOf(state, from, state.current) > 0) select(from);
     }
   };
   for (const [name, run] of Object.entries(actions)) {
@@ -329,6 +406,10 @@ export function createPlayScene(game) {
       button.dataset.index = String(index);
       actions.choose(button);
     },
+    setCount: (/** @type {number} */ n) => {
+      ctl.count = n;
+      refresh();
+    },
     state: () => state
   });
 
@@ -351,6 +432,7 @@ export function createPlayScene(game) {
       panelRoot.hidden = true;
       ctl.popup = null;
       renderPopup(popupRoot, null, { left: 0, top: 0 }, state, game.t);
+      renderHint(hintRoot, null, { left: 0, top: 0 });
     },
     update() {
       const { input } = game;
@@ -366,18 +448,26 @@ export function createPlayScene(game) {
       const hit = hitTest(input.pointer.x, input.pointer.y);
       const circle = hit.pointDistance <= BOARD_VIEW.pointPick && ctl.hl.points.includes(hit.point) ? hit.point : null;
       ctl.hover = { cell: hit.cell, point: circle };
+      // Mouse wheel: scroll up for more troops, down for fewer.
+      if (input.pointer.wheel !== 0 && ctl.source !== null) {
+        ctl.count -= input.pointer.wheel;
+        refresh();
+      }
       if (input.pointer.pressed) {
         onBoardClick(hit);
         refresh();
       }
+      updateHint();
     },
     render(/** @type {CanvasRenderingContext2D} */ ctx) {
-      const attack = ctl.popup?.kind === 'attack' ? ctl.popup : null;
+      const pending = ctl.popup?.kind === 'attack' || ctl.popup?.kind === 'move' ? ctl.popup : null;
+      const targetCell = ctl.popup?.kind === 'attack' ? ctl.popup.target : ctl.popup?.kind === 'move' ? ctl.popup.to : null;
       drawBoard(ctx, state, {
         ...ctl.hl,
-        source: attack ? attack.from : ctl.source,
+        preview: movePreview(),
+        source: pending ? pending.from : ctl.source,
         sourcePoint: ctl.sourcePoint,
-        selectedCell: attack ? attack.target : ctl.infoCell !== ctl.source ? ctl.infoCell : null,
+        selectedCell: targetCell ?? (ctl.infoCell !== ctl.source ? ctl.infoCell : null),
         hoverCell: ctl.hover.cell,
         hoverPoint: ctl.hover.point
       });
@@ -389,6 +479,7 @@ export function createPlayScene(game) {
         turn: state.turn,
         dice: state.dice,
         source: ctl.source,
+        count: ctl.count,
         popup: ctl.popup?.kind ?? null,
         message: ctl.message?.key ?? null,
         winner: state.winner,

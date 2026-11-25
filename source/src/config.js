@@ -35,8 +35,7 @@ export const BOARD_VIEW = {
     numberHot: '#c0392b', // 6 and 8, the most likely numbers
     numberText: '#1b1b22',
     select: '#ffffff',
-    target: 'rgba(255, 255, 255, 0.28)', // cart destinations
-    targetFar: 'rgba(255, 255, 255, 0.14)', // horse destinations
+    target: 'rgba(255, 255, 255, 0.28)', // move destinations
     attack: 'rgba(229, 72, 77, 0.45)', // cells you can attack
     point: 'rgba(255, 255, 255, 0.9)' // intersection circles
   }
@@ -95,13 +94,10 @@ export const TROOPS = {
   spawnPerTower: 4 // free troops added to each owned tower cell at the start of the owner's turn (fills it)
 };
 
-/**
- * The two ways to move troops. Each moves up to `troops` (fewer if the source has fewer or the
- * destination has less room) exactly `cells` orthogonal steps away. Costs are in COSTS.
- */
-export const MOVES = {
-  cart: { troops: 4, cells: 1 },
-  horse: { troops: 2, cells: 2 }
+/** Moving troops: the player picks how many troops and how far; only grain is paid. */
+export const MOVE = {
+  grainPerTroopCell: 0.5, // cost = troops x cells x this, rounded up (2 troops 1 cell = 1, 8 troops 2 cells = 8)
+  maxCells: Infinity // farthest destination in orthogonal steps (Infinity: any, as long as you can pay); troops pass through any cell
 };
 
 /** Roll the dice automatically at the start of each turn (it is never a choice). */
@@ -118,12 +114,10 @@ export const PORT_TRADE = { give: 2, gold: 1 }; // port goods paid -> gold recei
  */
 export const COSTS = {
   recruit: { iron: 1, grain: 1 },
-  cart: { wood: 1, grain: 1 },
-  horse: { grain: 2 },
   attackInside: { iron: 1 },
   attackOutside: { iron: 1, grain: 1 },
   settlement: { stone: 1, wood: 1 },
-  moveSettlement: { grain: 1 },
+  moveSettlement: { grain: 2 }, // a settlement is a +1 combat bonus that never dies: moving it costs as much as 4 troop-steps
   castle: { stone: 4, wood: 2 },
   port: { stone: 2, wood: 3 },
   conquer: { iron: 1, grain: 1 }

@@ -10,8 +10,7 @@ const OUTLINE = '#0d0e13';
 
 /**
  * @typedef {object} Highlights
- * @property {number[]} [moves] Cart destinations (next cell).
- * @property {number[]} [farMoves] Horse destinations (2 steps).
+ * @property {number[]} [moves] Cells the selected troops can move to.
  * @property {number[]} [attacks] Cells the selected troops can attack.
  * @property {number[]} [points] Intersections with something to do (circles).
  * @property {number | null} [source] Selected cell with your troops.
@@ -19,6 +18,8 @@ const OUTLINE = '#0d0e13';
  * @property {number | null} [selectedCell]
  * @property {number | null} [hoverCell]
  * @property {number | null} [hoverPoint] Circle under the pointer.
+ * @property {{from: number, to: number, count: number, player: number} | null} [preview] Move being chosen:
+ *   the troops that leave are drawn faded in the source, and the ones that arrive as ghosts in the destination.
  */
 
 /** @param {number | null} owner */
@@ -35,9 +36,8 @@ export function drawBoard(ctx, state, hl) {
 
   for (const cell of state.cells) drawCell(ctx, cell);
   for (const id of hl.moves ?? []) fillCell(ctx, id, C.target);
-  for (const id of hl.farMoves ?? []) fillCell(ctx, id, C.targetFar);
   for (const id of hl.attacks ?? []) fillCell(ctx, id, C.attack);
-  for (const cell of state.cells) drawTroops(ctx, state, cell);
+  for (const cell of state.cells) drawTroops(ctx, state, cell, hl.preview ?? null);
   for (const [point, b] of Object.entries(state.buildings)) drawBuilding(ctx, Number(point), b);
   for (const id of hl.points ?? []) drawPointCircle(ctx, id, id === hl.hoverPoint, id in state.buildings);
 
@@ -138,21 +138,38 @@ function drawTower(ctx, x, y, color) {
  * @param {import('../systems/state.js').GameState} state
  * @param {import('../systems/board.js').Cell} cell
  */
-function drawTroops(ctx, state, cell) {
+function drawTroops(ctx, state, cell, preview) {
   const slots = capacity(state, cell.id);
+  const leaving = preview && preview.from === cell.id ? preview.count : 0;
+  const arriving = preview && preview.to === cell.id ? preview.count : 0;
   let slot = 0;
   cell.troops.forEach((n, player) => {
-    for (let i = 0; i < n && slot < slots; i++, slot++) {
-      const p = troopSlot(cell.id, slot, slots);
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, BOARD_VIEW.troopRadius, 0, Math.PI * 2);
-      ctx.fillStyle = PLAYERS.colors[player];
-      ctx.fill();
-      ctx.lineWidth = 2;
-      ctx.strokeStyle = OUTLINE;
-      ctx.stroke();
-    }
+    // The last `leaving` troops of the mover in the source are the ones that go.
+    const firstLeaving = preview && player === preview.player ? n - leaving : n;
+    for (let i = 0; i < n && slot < slots; i++, slot++) drawTroop(ctx, troopSlot(cell.id, slot, slots), PLAYERS.colors[player], i >= firstLeaving ? 'leaving' : 'solid');
   });
+  for (let i = 0; i < arriving && slot < slots; i++, slot++) drawTroop(ctx, troopSlot(cell.id, slot, slots), PLAYERS.colors[/** @type {number} */ (preview?.player)], 'arriving');
+}
+
+/**
+ * One troop token. Previews: 'leaving' is faded, 'arriving' is a ghost with a dashed outline.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x: number, y: number}} p
+ * @param {string} color
+ * @param {'solid' | 'leaving' | 'arriving'} look
+ */
+function drawTroop(ctx, p, color, look) {
+  ctx.save();
+  ctx.globalAlpha = look === 'solid' ? 1 : look === 'leaving' ? 0.3 : 0.55;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, BOARD_VIEW.troopRadius, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = look === 'arriving' ? '#ffffff' : OUTLINE;
+  if (look === 'arriving') ctx.setLineDash([3, 3]);
+  ctx.stroke();
+  ctx.restore();
 }
 
 /** @param {CanvasRenderingContext2D} ctx @param {number} point @param {import('../systems/state.js').Building} b */

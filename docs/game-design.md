@@ -18,7 +18,7 @@ Move troops (and fight with them) to win cell majorities.
 
 | Action | Mouse | Keyboard |
 | ------ | ----- | -------- |
-| Move troops | Click one of your cells, then a highlighted cell: next to it = cart, 2 steps away = horse | – |
+| Move troops | Click one of your cells (all its troops are picked: change the number with − + or the mouse wheel), then a highlighted cell at any distance (as long as you can pay); a box shows the price: Accept, or click the same cell again; another cell changes the destination | Accept: Enter |
 | Attack | With a cell selected, click a red cell (or your selected cell, to attack inside it) | Popup buttons: Tab, Enter |
 | Build, promote, conquer, trade, move a settlement | Click a white circle on an intersection, then pick in the popup | Tab, Enter |
 | Recruit | Click a cell touching your castle (or your selected cell again) | – |
@@ -58,7 +58,7 @@ Everything is in `source/src/config.js`:
 | `COSTS` | Cost of every action. |
 | `TROOPS.maxPerCell`, `maxPerTower`, `start`, `spawnPerTower` | Cell limits, starting troops, free troops per tower per turn. |
 | `BUILDING_BONUS` | Combat bonus of settlements, castles and ports. |
-| `MOVES` | Troops and distance of the cart and the horse. |
+| `MOVE` | Grain per troop and cell, farthest destination. |
 | `AUTO_ROLL` | Roll the dice automatically at the start of each turn. |
 | `PORT_TRADE` | Port goods paid for 1 gold. |
 | `CONQUER_SETTLEMENT_INNER` | Cells to hold to conquer an inner settlement. |
@@ -72,4 +72,5 @@ Debug: `?debug` shows the overlay; `?seed=N` repeats a board; `?scene=play&playe
 | ---- | ------------------ | ----------------------------- |
 | 2026-11-25 | First playable greybox of the trial rules. | Too slow: retune. |
 | 2026-11-25 | Bases moved to quadrant centers, 4 starting troops, spawn 4 per turn, missing cards paid with gold automatically. | Retune movement and controls. |
-| 2026-11-25 | Cart (4 troops, 1 cell) and horse (2 troops, 2 cells) replace move and wagon; tower cells hold 4; spawn before gold; board clicks and popups replace the tool buttons; automatic dice roll. | Pending playtest. |
+| 2026-11-25 | Cart (4 troops, 1 cell) and horse (2 troops, 2 cells) replace move and wagon; tower cells hold 4; spawn before gold; board clicks and popups replace the tool buttons; automatic dice roll. | Retune movement. |
+| 2026-11-25 | One move action: pick troops and distance (any distance you can pay), ½ grain per troop and cell; move box with price and Accept; settlements move for 2 grain; attacks count the attacked cell buildings for both sides. | Pending playtest. |

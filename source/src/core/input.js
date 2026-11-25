@@ -21,7 +21,8 @@ export function createInput({ keys, pad = {}, target, toGame }) {
   /** @type {Set<string>} */ const releasedSet = new Set();
   /** @type {Set<string>} */ let padDown = new Set();
   /** @type {Set<string>} */ const padPressedSet = new Set();
-  const pointer = { x: 0, y: 0, down: false, pressed: false, released: false };
+  // wheel: wheel steps since the last update (+1 per notch scrolled down, -1 up).
+  const pointer = { x: 0, y: 0, down: false, pressed: false, released: false, wheel: 0 };
   const axisLeft = { x: 0, y: 0 };
 
   /** @type {Map<string, string[]>} */
@@ -79,6 +80,12 @@ export function createInput({ keys, pad = {}, target, toGame }) {
   function onPointerMove(e) {
     if (toGame) Object.assign(pointer, toGame(e.clientX, e.clientY));
   }
+  /** @param {WheelEvent} e */
+  function onWheel(e) {
+    if (e.deltaY === 0) return;
+    e.preventDefault(); // the wheel drives the game, not the page scroll
+    pointer.wheel += Math.sign(e.deltaY);
+  }
   function onPointerUp() {
     if (pointer.down) pointer.released = true;
     pointer.down = false;
@@ -116,6 +123,7 @@ export function createInput({ keys, pad = {}, target, toGame }) {
   if (target) {
     target.addEventListener('pointerdown', onPointerDown);
     target.addEventListener('pointermove', onPointerMove);
+    target.addEventListener('wheel', onWheel, { passive: false });
     window.addEventListener('pointerup', onPointerUp);
     window.addEventListener('pointercancel', onPointerUp);
   }
@@ -145,6 +153,7 @@ export function createInput({ keys, pad = {}, target, toGame }) {
       padPressedSet.clear();
       pointer.pressed = false;
       pointer.released = false;
+      pointer.wheel = 0;
     },
     /** True if any action or the pointer was pressed this step. */
     anyPressed: () => pressedSet.size > 0 || pointer.pressed,

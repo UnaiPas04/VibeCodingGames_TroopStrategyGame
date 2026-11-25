@@ -90,15 +90,17 @@ _Replaces the official "Resource production" section._
 
 ## T4. Movement
 
-- **Move troops** has two forms. Both take troops from one cell to one cell, counting orthogonal steps (no diagonals):
+- **Move troops:** pick a cell of yours, how many of its troops, and a destination at **any distance** you can pay for (orthogonal steps, no diagonals).
+- **Cost:** **½ grain per troop and cell**, rounded up. Only grain.
 
-  | Form | Troops | Distance | Cost |
-  | --- | --- | --- | --- |
-  | **Cart** | up to **4** | exactly **1 cell** | 1 wood + 1 grain |
-  | **Horse** | up to **2** | exactly **2 cells** (never 1) | 2 grain |
+  | Move | Cost |
+  | --- | --- |
+  | 1 or 2 troops, 1 cell | 1 grain |
+  | 3 troops, 1 cell | 2 grain |
+  | 8 troops, 2 cells | 8 grain |
+  | 3 troops, 3 cells | 5 grain |
 
-- A move always carries as many troops as it can: its limit, or all your troops in the source if there are fewer, or as many as fit in the destination.
-- On the horse, only the destination needs room: the troops pass through any cell.
+- Only the destination needs room: the troops pass through any cell.
 - **No movement limit:** you can move as many times per turn as you can pay for.
 - **Ship:** left out of the trial for now.
 - Troops can move into any cell with free slots, including cells with enemy troops and a rival's base cell. That does not start a fight: fighting is a separate action.
@@ -145,7 +147,7 @@ _Replaces the official placement rules of the mobile settlement, castle and port
   | **Where** | A cell where you and the chosen enemy both have troops. | An enemy cell next to a cell that **you hold** (only your troops). |
   | **Cost** | 1 iron | 1 iron + 1 grain |
   | **Troops you can commit** | 1 up to all your troops in that cell. | 1 up to all your troops in your cell. If you commit all of them and lose, your cell is left empty. |
-  | **Buildings that count** | Each side's own buildings on the **4 corners** of that cell. | Each side's own buildings on the **2 ends of the shared side**. |
+  | **Buildings that count** | Each side's own buildings on the **4 corners** of that cell. | Each side's own buildings on the **4 corners of the attacked cell** (not those of your own cell). |
   | **You win** | All the defender's troops in that cell are removed. | All the defender's troops in the attacked cell are removed. |
   | **You lose or tie** | You lose **the troops you committed**. The defender loses nothing. | You lose **the troops you committed**. The defender loses nothing. |
 
@@ -231,13 +233,12 @@ First turn example: you start with 4 troops in your tower cell, which is already
 | Action | Cost |
 | --- | --- |
 | Recruit troop | 1 iron + 1 grain |
-| Cart (up to 4 troops, 1 cell) | 1 wood + 1 grain |
-| Horse (up to 2 troops, 2 cells) | 2 grain |
+| Move troops (any distance) | ½ grain per troop and cell, rounded up |
 | Ship | left out |
 | Attack from inside | 1 iron |
 | Attack from outside | 1 iron + 1 grain |
 | Build settlement | 1 stone + 1 wood |
-| Move settlement | 1 grain |
+| Move settlement (one step) | 2 grain |
 | Promote to castle | 4 stone + 2 wood |
 | Promote to port | 2 stone + 3 wood |
 | Conquer building | 1 iron + 1 grain |

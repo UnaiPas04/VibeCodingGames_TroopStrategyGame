@@ -9,7 +9,8 @@
     "test": "node --test \"tests/**/*.test.js\"",
     "demo": "node tools/dev-server.mjs --root .claude/templates/game-2d/source --port 5181",
     "test:demo": "node --test \".claude/templates/game-2d/tests/**/*.test.js\"",
-    "browsers": "playwright install chromium"
+    "browsers": "playwright install chromium",
+    "simulate": "node tools/sim/run.mjs"
   },
   "devDependencies": {
     "playwright": "1.65.1",

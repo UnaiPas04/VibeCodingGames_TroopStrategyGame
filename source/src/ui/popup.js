@@ -3,8 +3,7 @@
 
 import { COSTS, PLAYERS } from '../config.js';
 import { costOf } from '../systems/actions.js';
-import { pointKind } from '../systems/board.js';
-import { choiceCount } from '../systems/choices.js';
+import { cellDistance, pointKind } from '../systems/board.js';
 import { winChance } from '../systems/combat.js';
 import { costText, playerName } from './panel.js';
 
@@ -12,7 +11,8 @@ import { costText, playerName } from './panel.js';
 /** @typedef {import('../systems/choices.js').Choice} Choice */
 
 /**
- * @typedef {{kind: 'menu', choices: Choice[], compact?: boolean}
+ * @typedef {{kind: 'menu', choices: Choice[], compact?: boolean, count?: number, max?: number}
+ *   | {kind: 'move', from: number, to: number, count: number, max: number}
  *   | {kind: 'attack', from: number, target: number, enemies: number[], defender: number, count: number, max: number, attackerBonus: number, defenderBonus: number}} PopupModel
  */
 
@@ -35,9 +35,8 @@ export function describeChoice(t, state, choice, short = false) {
   const a = choice.action;
   const cost = costText(t, costOf(state, a));
   switch (a.type) {
-    case 'cart':
-    case 'horse':
-      return { label: t(a.type === 'cart' ? 'choice.cart' : 'choice.horse', { count: choiceCount(state, a) }), cost };
+    case 'move':
+      return { label: t('choice.move', { count: a.count, cells: cellDistance(a.from, a.to) }), cost };
     case 'recruit':
       return { label: t(short ? 'choice.recruit-short' : 'choice.recruit'), cost };
     case 'build-settlement':
@@ -70,12 +69,38 @@ export function renderPopup(root, model, at, state, t) {
   const compact = model.kind === 'menu' && !!model.compact;
   root.classList.toggle('compact', compact);
   if (model.kind === 'menu') {
-    root.innerHTML = model.choices
+    // The compact menu on a selected cell starts with the number of troops to move.
+    const stepper =
+      compact && (model.max ?? 0) > 1
+        ? `<div class="row stepper" title="${esc(t('move.wheel'))}">
+            <button class="small" data-action="move-count" data-delta="-1" ${(model.count ?? 1) <= 1 ? 'disabled' : ''}>−</button>
+            <b>${model.count}</b>
+            <button class="small" data-action="move-count" data-delta="1" ${(model.count ?? 1) >= (model.max ?? 1) ? 'disabled' : ''}>+</button></div>`
+        : '';
+    root.innerHTML = stepper + model.choices
       .map((c, i) => {
         const { label, cost } = describeChoice(t, state, c, compact);
         return `<button data-action="choose" data-index="${i}"><span>${esc(label)}</span>${cost ? `<small>${esc(cost)}</small>` : ''}</button>`;
       })
       .join('');
+  } else if (model.kind === 'move') {
+    const action = /** @type {const} */ ({ type: 'move', from: model.from, to: model.to, count: model.count });
+    const stepper =
+      model.max > 1
+        ? `<div class="row stepper"><span>${esc(t('attack.troops'))}</span>
+        <button class="small" data-action="move-count" data-delta="-1" ${model.count <= 1 ? 'disabled' : ''}>−</button>
+        <b>${model.count}</b>
+        <button class="small" data-action="move-count" data-delta="1" ${model.count >= model.max ? 'disabled' : ''}>+</button></div>`
+        : '';
+    root.innerHTML = `
+      <b>${esc(t('choice.move', { count: model.count, cells: cellDistance(model.from, model.to) }))}</b>
+      <span>${esc(t('move.price', { cost: costText(t, costOf(state, action)) }))}</span>
+      ${stepper}
+      <div class="row">
+        <button class="primary" data-action="confirm-move">${esc(t('action.accept'))}</button>
+        <button data-action="cancel">${esc(t('action.cancel'))}</button>
+      </div>
+      <span class="muted">${esc(t('move.retarget'))}</span>`;
   } else {
     const defenderTroops = state.cells[model.target].troops[model.defender];
     const edge = model.count + model.attackerBonus - (defenderTroops + model.defenderBonus);
@@ -98,7 +123,10 @@ export function renderPopup(root, model, at, state, t) {
         <button class="small" data-action="count" data-delta="1" ${model.count >= model.max ? 'disabled' : ''}>+</button></div>
       <span class="muted">${esc(t('attack.bonus', { mine: model.attackerBonus, theirs: model.defenderBonus }))}</span>
       <b>${esc(t('attack.odds', { pct: Math.round(winChance(edge) * 100) }))}</b>
-      <button class="primary" data-action="fight">${esc(t('attack.fight'))}</button>`;
+      <div class="row">
+        <button class="primary" data-action="fight">${esc(t('attack.fight'))}</button>
+        <button data-action="cancel">${esc(t('action.cancel'))}</button>
+      </div>`;
   }
   // Keep the popup inside the window.
   const parent = root.parentElement?.getBoundingClientRect();
@@ -108,6 +136,20 @@ export function renderPopup(root, model, at, state, t) {
   const top = parent ? Math.min(at.top, parent.height - h - 8) : at.top;
   root.style.left = `${Math.max(8, left)}px`;
   root.style.top = `${Math.max(8, top)}px`;
-  // Compact menus are optional extras: they do not take the keyboard focus.
+  // Compact menus never take the keyboard focus: the board keeps the wheel and the clicks.
   if (!compact) /** @type {HTMLElement | null} */ (root.querySelector('.primary') ?? root.querySelector('button'))?.focus({ preventScroll: true });
+}
+
+/**
+ * Small text next to the pointer (the cost of the move under it). Never takes clicks.
+ * @param {HTMLElement} root The hint element.
+ * @param {string | null} text
+ * @param {{left: number, top: number}} at Position inside #ui, in CSS pixels.
+ */
+export function renderHint(root, text, at) {
+  root.hidden = !text;
+  if (!text) return;
+  root.textContent = text;
+  root.style.left = `${at.left}px`;
+  root.style.top = `${at.top}px`;
 }
