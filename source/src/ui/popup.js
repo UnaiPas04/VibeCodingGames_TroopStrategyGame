@@ -12,7 +12,7 @@ import { costText, playerName } from './panel.js';
 /** @typedef {import('../systems/choices.js').Choice} Choice */
 
 /**
- * @typedef {{kind: 'menu', choices: Choice[]}
+ * @typedef {{kind: 'menu', choices: Choice[], compact?: boolean}
  *   | {kind: 'attack', from: number, target: number, enemies: number[], defender: number, count: number, max: number, attackerBonus: number, defenderBonus: number}} PopupModel
  */
 
@@ -23,11 +23,13 @@ const esc = (/** @type {unknown} */ s) => String(s).replace(/[&<>"]/g, (c) => `&
  * @param {Translate} t
  * @param {import('../systems/state.js').GameState} state
  * @param {Choice} choice
+ * @param {boolean} [short] Short labels for the compact menu on a selected cell.
  */
-export function describeChoice(t, state, choice) {
+export function describeChoice(t, state, choice, short = false) {
   if (choice.kind === 'attack') {
     const inside = choice.from === choice.target;
-    return { label: t(inside ? 'choice.attack-inside' : 'choice.attack-outside'), cost: costText(t, inside ? COSTS.attackInside : COSTS.attackOutside) };
+    const label = inside ? (short ? 'choice.attack-inside-short' : 'choice.attack-inside') : 'choice.attack-outside';
+    return { label: t(label), cost: costText(t, inside ? COSTS.attackInside : COSTS.attackOutside) };
   }
   if (choice.kind === 'move-settlement') return { label: t('choice.move-settlement'), cost: costText(t, COSTS.moveSettlement) };
   const a = choice.action;
@@ -37,7 +39,7 @@ export function describeChoice(t, state, choice) {
     case 'horse':
       return { label: t(a.type === 'cart' ? 'choice.cart' : 'choice.horse', { count: choiceCount(state, a) }), cost };
     case 'recruit':
-      return { label: t('choice.recruit'), cost };
+      return { label: t(short ? 'choice.recruit-short' : 'choice.recruit'), cost };
     case 'build-settlement':
       return { label: t('choice.build'), cost };
     case 'promote':
@@ -65,10 +67,12 @@ export function renderPopup(root, model, at, state, t) {
     return;
   }
   root.hidden = false;
+  const compact = model.kind === 'menu' && !!model.compact;
+  root.classList.toggle('compact', compact);
   if (model.kind === 'menu') {
     root.innerHTML = model.choices
       .map((c, i) => {
-        const { label, cost } = describeChoice(t, state, c);
+        const { label, cost } = describeChoice(t, state, c, compact);
         return `<button data-action="choose" data-index="${i}"><span>${esc(label)}</span>${cost ? `<small>${esc(cost)}</small>` : ''}</button>`;
       })
       .join('');
@@ -104,5 +108,6 @@ export function renderPopup(root, model, at, state, t) {
   const top = parent ? Math.min(at.top, parent.height - h - 8) : at.top;
   root.style.left = `${Math.max(8, left)}px`;
   root.style.top = `${Math.max(8, top)}px`;
-  /** @type {HTMLElement | null} */ (root.querySelector('.primary') ?? root.querySelector('button'))?.focus({ preventScroll: true });
+  // Compact menus are optional extras: they do not take the keyboard focus.
+  if (!compact) /** @type {HTMLElement | null} */ (root.querySelector('.primary') ?? root.querySelector('button'))?.focus({ preventScroll: true });
 }

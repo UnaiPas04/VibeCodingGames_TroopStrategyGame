@@ -101,11 +101,13 @@
   "choice.port": "Ascender a puerto",
   "choice.conquer": "Conquistar",
   "choice.trade": "Cambiar {pay} → 1 oro",
-  "help.play": "Pulsa una casilla tuya y luego una casilla iluminada: al lado = carreta (hasta 4 tropas), a 2 pasos = caballo (hasta 2). Las casillas rojas se pueden atacar. Pulsa otra vez tu casilla seleccionada para reclutar o atacar dentro.",
+  "help.play": "Pulsa una casilla tuya y luego una casilla iluminada: al lado = carreta (hasta 4 tropas), a 2 pasos = caballo (hasta 2). Las casillas rojas se pueden atacar. Reclutar o atacar dentro de tu casilla aparecen sobre la propia casilla. Vuelve a pulsar la casilla seleccionada para cancelar.",
   "help.build": "Círculos blancos en las intersecciones: construir, ascender, conquistar, comerciar o mover un asentamiento. Esc cancela.",
   "attack.troops": "Tropas",
   "info.capacity": "Caben {n} tropas",
   "log.cart": "{player} mueve {count} tropa(s) en carreta",
   "log.horse": "{player} mueve {count} tropa(s) a caballo",
-  "error.horse-distance": "El caballo se mueve exactamente 2 casillas."
+  "error.horse-distance": "El caballo se mueve exactamente 2 casillas.",
+  "choice.attack-inside-short": "Atacar dentro",
+  "choice.recruit-short": "Reclutar"
 }

@@ -101,11 +101,13 @@
   "choice.port": "Promote to port",
   "choice.conquer": "Conquer",
   "choice.trade": "Trade {pay} → 1 gold",
-  "help.play": "Click one of your cells, then a highlighted cell: next to it = cart (up to 4 troops), 2 steps away = horse (up to 2). Red cells can be attacked. Click your selected cell again to recruit or attack inside it.",
+  "help.play": "Click one of your cells, then a highlighted cell: next to it = cart (up to 4 troops), 2 steps away = horse (up to 2). Red cells can be attacked. Recruiting or attacking inside your cell appear on the cell itself. Click the selected cell again to cancel.",
   "help.build": "White circles on intersections: build, promote, conquer, trade or move a settlement. Esc cancels.",
   "attack.troops": "Troops",
   "info.capacity": "Room for {n} troops",
   "log.cart": "{player} moves {count} troop(s) by cart",
   "log.horse": "{player} moves {count} troop(s) by horse",
-  "error.horse-distance": "The horse moves exactly 2 cells."
+  "error.horse-distance": "The horse moves exactly 2 cells.",
+  "choice.attack-inside-short": "Attack inside",
+  "choice.recruit-short": "Recruit"
 }

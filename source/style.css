@@ -358,6 +358,25 @@ button.small {
   opacity: 0.75;
 }
 
+/* Compact menu over the lower part of the selected cell: neighbor cells stay clickable. */
+.popup.compact {
+  min-width: 0;
+  max-width: 110px;
+  padding: 3px;
+  gap: 3px;
+  font-size: 11px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.popup.compact > button {
+  padding: 2px 6px;
+  line-height: 1.15;
+}
+
+.popup.compact small {
+  font-size: 9px;
+}
+
 /* Narrow screens: the panel goes below the board. */
 @media (max-width: 800px) {
   :root {

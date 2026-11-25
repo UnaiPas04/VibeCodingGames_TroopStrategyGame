@@ -1,7 +1,8 @@
 // Hot-seat match: every player takes turns on the same screen.
 // Plays need as few clicks as possible: click one of your cells, then a highlighted cell (cart next to it,
-// horse 2 steps away, red = attack); click an intersection circle to build. Choices open in a popup
-// next to the click. The rules live in systems/ (pure); this scene wires input, log, sounds and drawing.
+// horse 2 steps away, red = attack; click it again to cancel); click an intersection circle to build.
+// Choices open in a popup next to the click; a selected cell's own choices (recruit, attack inside)
+// show in a compact menu on the cell itself. The rules live in systems/ (pure); this scene wires input, log, sounds and drawing.
 
 import { AUTO_ROLL, BOARD_VIEW, LOG_LINES, VIEW } from '../config.js';
 import { applyAction, attackBonuses, checkAction } from '../systems/actions.js';
@@ -10,7 +11,7 @@ import { troopsOf } from '../systems/state.js';
 import { endTurn, newGame, rollDice } from '../systems/turn.js';
 import { formatMessage, renderPanel } from '../ui/panel.js';
 import { renderPopup } from '../ui/popup.js';
-import { cellCenter, hitTest, pointPos } from './board-layout.js';
+import { cellCenter, cellRect, hitTest, pointPos } from './board-layout.js';
 import { drawBoard } from './board-view.js';
 
 /** @typedef {import('../ui/panel.js').Message} Message */
@@ -52,13 +53,14 @@ export function createPlayScene(game) {
     if (ctl.log.length > LOG_LINES) ctl.log.splice(0, ctl.log.length - LOG_LINES);
   }
 
-  /** Position inside #ui (CSS pixels) of a point in game units, just right of it. */
+  /** Position inside #ui (CSS pixels) of a point in game units; menus sit just right of it, compact ones exactly on it. */
   function toUi(/** @type {{x: number, y: number}} */ g) {
     const canvas = game.view.canvas.getBoundingClientRect();
     const ui = /** @type {HTMLElement} */ (popupRoot.parentElement).getBoundingClientRect();
+    const offset = ctl.popup?.kind === 'menu' && ctl.popup.compact ? { x: 0, y: 0 } : { x: 16, y: -16 };
     return {
-      left: canvas.left - ui.left + (g.x / VIEW.width) * canvas.width + 16,
-      top: canvas.top - ui.top + (g.y / VIEW.height) * canvas.height - 16
+      left: canvas.left - ui.left + (g.x / VIEW.width) * canvas.width + offset.x,
+      top: canvas.top - ui.top + (g.y / VIEW.height) * canvas.height + offset.y
     };
   }
 
@@ -178,11 +180,27 @@ export function createPlayScene(game) {
     ctl.popupAt = at;
   }
 
+  /**
+   * Select one of your cells. Its own extra choices (recruit, attack inside) show in a compact menu
+   * over the lower part of the cell, so the neighbor cells stay clickable.
+   * @param {number} cell
+   */
+  function select(cell) {
+    ctl.source = cell;
+    ctl.infoCell = cell;
+    const own = cellChoices(state, cell, cell);
+    if (own.length === 0) return;
+    const rect = cellRect(cell);
+    ctl.popup = { kind: 'menu', choices: own, compact: true };
+    ctl.popupAt = { x: rect.x + 4, y: rect.y + rect.h * 0.45 };
+  }
+
   /** @param {{cell: number | null, point: number, pointDistance: number}} hit */
   function onBoardClick(hit) {
     if (ctl.popup) {
+      const compact = ctl.popup.kind === 'menu' && ctl.popup.compact;
       ctl.popup = null; // a click outside the popup closes it
-      return;
+      if (!compact) return; // a compact menu does not block the board: the click also plays
     }
     ctl.message = null;
     if (state.phase !== 'actions') {
@@ -204,6 +222,10 @@ export function createPlayScene(game) {
       return;
     }
     const me = state.current;
+    if (cell === ctl.source) {
+      ctl.source = null; // clicking the selected cell again always cancels the selection
+      return;
+    }
     const choices = cellChoices(state, ctl.source, cell);
     if (ctl.source !== null && choices.length === 1) {
       const [only] = choices;
@@ -213,8 +235,9 @@ export function createPlayScene(game) {
     }
     if (choices.length > 0 && (ctl.source !== null || troopsOf(state, cell, me) === 0)) return openMenu(choices, cellCenter(cell));
     // Nothing to do there: select it if it has your troops, otherwise show its details.
+    if (troopsOf(state, cell, me) > 0) return select(cell);
     ctl.infoCell = cell;
-    ctl.source = troopsOf(state, cell, me) > 0 && cell !== ctl.source ? cell : null;
+    ctl.source = null;
   }
 
   function roll() {
