@@ -1,0 +1,194 @@
+// Draws the board on the canvas: cells, numbers, towers, troops, buildings and highlights. Greybox shapes only.
+
+import { BOARD_VIEW, PLAYERS, TROOPS, VIEW } from '../config.js';
+import { CELL_COUNT } from '../systems/board.js';
+import { cellCenter, cellRect, pointPos, troopSlot } from './board-layout.js';
+
+const C = BOARD_VIEW.colors;
+const OUTLINE = '#0d0e13';
+
+/**
+ * @typedef {object} Highlights
+ * @property {'cell' | 'point'} [targetKind]
+ * @property {number[]} [targets] Ids a click would accept.
+ * @property {'cell' | 'point'} [sourceKind]
+ * @property {number | null} [source]
+ * @property {number | null} [selectedCell]
+ * @property {number | null} [hoverCell]
+ * @property {number | null} [hoverPoint]
+ */
+
+/** @param {number | null} owner */
+const ownerColor = (owner) => (owner === null ? PLAYERS.grey : PLAYERS.colors[owner]);
+
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('../systems/state.js').GameState} state
+ * @param {Highlights} hl
+ */
+export function drawBoard(ctx, state, hl) {
+  ctx.fillStyle = VIEW.background;
+  ctx.fillRect(0, 0, VIEW.width, VIEW.height);
+
+  for (const cell of state.cells) drawCell(ctx, cell);
+  if (hl.targetKind === 'cell') for (const id of hl.targets ?? []) fillCell(ctx, id, C.target);
+  for (const cell of state.cells) drawTroops(ctx, cell);
+  for (const [point, b] of Object.entries(state.buildings)) drawBuilding(ctx, Number(point), b);
+  if (hl.targetKind === 'point') for (const id of hl.targets ?? []) ringPoint(ctx, id, C.target, 5);
+
+  if (hl.hoverCell != null && hl.targetKind !== 'point') strokeCell(ctx, hl.hoverCell, 'rgba(255,255,255,0.5)', 2);
+  if (hl.hoverPoint != null && hl.targetKind === 'point') ringPoint(ctx, hl.hoverPoint, 'rgba(255,255,255,0.7)', 2);
+  if (hl.selectedCell != null) strokeCell(ctx, hl.selectedCell, C.select, 3);
+  if (hl.source != null) {
+    if (hl.sourceKind === 'point') ringPoint(ctx, hl.source, C.select, 3);
+    else strokeCell(ctx, hl.source, C.select, 4);
+  }
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {import('../systems/board.js').Cell} cell */
+function drawCell(ctx, cell) {
+  const r = cellRect(cell.id);
+  ctx.fillStyle = cell.kind === 'empty' ? C.empty : C[/** @type {keyof typeof C} */ (cell.resource ?? 'empty')];
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+  ctx.strokeStyle = C.grid;
+  ctx.lineWidth = 2;
+  ctx.strokeRect(r.x + 1, r.y + 1, r.w - 2, r.h - 2);
+  const c = cellCenter(cell.id);
+  if (cell.kind === 'normal' && cell.number !== null) drawNumber(ctx, c.x, c.y, cell.number);
+  if (cell.kind === 'tower') drawTower(ctx, c.x, c.y, ownerColor(cell.towerOwner));
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y @param {number} n */
+function drawNumber(ctx, x, y, n) {
+  const radius = BOARD_VIEW.numberRadius;
+  ctx.beginPath();
+  ctx.arc(x, y, radius, 0, Math.PI * 2);
+  ctx.fillStyle = C.number;
+  ctx.fill();
+  const hot = n === 6 || n === 8;
+  ctx.fillStyle = hot ? C.numberHot : C.numberText;
+  ctx.font = `bold ${radius}px system-ui, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(String(n), x, y - 2);
+  // Pips: how likely the number is (ways to roll it with two dice).
+  const pips = 6 - Math.abs(7 - n);
+  for (let i = 0; i < pips; i++) {
+    ctx.beginPath();
+    ctx.arc(x + (i - (pips - 1) / 2) * 4, y + radius * 0.62, 1.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} x @param {number} y @param {string} color */
+function drawTower(ctx, x, y, color) {
+  const w = 22;
+  const h = 26;
+  ctx.fillStyle = color;
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x - w / 2, y + h / 2);
+  ctx.lineTo(x - w / 2, y - h / 2);
+  for (let i = 0; i < 3; i++) {
+    const left = x - w / 2 + (i * w) / 3;
+    ctx.lineTo(left + w / 6, y - h / 2);
+    ctx.lineTo(left + w / 6, y - h / 2 + 5);
+    ctx.lineTo(left + w / 3, y - h / 2 + 5);
+    ctx.lineTo(left + w / 3, y - h / 2);
+  }
+  ctx.lineTo(x + w / 2, y + h / 2);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.fillStyle = OUTLINE;
+  ctx.fillRect(x - 3, y + h / 2 - 9, 6, 9);
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {import('../systems/board.js').Cell} cell */
+function drawTroops(ctx, cell) {
+  let slot = 0;
+  cell.troops.forEach((n, player) => {
+    for (let i = 0; i < n && slot < TROOPS.maxPerCell; i++, slot++) {
+      const p = troopSlot(cell.id, slot);
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, BOARD_VIEW.troopRadius, 0, Math.PI * 2);
+      ctx.fillStyle = PLAYERS.colors[player];
+      ctx.fill();
+      ctx.lineWidth = 2;
+      ctx.strokeStyle = OUTLINE;
+      ctx.stroke();
+    }
+  });
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} point @param {import('../systems/state.js').Building} b */
+function drawBuilding(ctx, point, b) {
+  const { x, y } = pointPos(point);
+  const s = BOARD_VIEW.buildingSize;
+  ctx.fillStyle = ownerColor(b.owner);
+  ctx.strokeStyle = OUTLINE;
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  if (b.type === 'settlement') {
+    // House: square with a roof.
+    ctx.moveTo(x - s * 0.8, y + s * 0.8);
+    ctx.lineTo(x - s * 0.8, y - s * 0.1);
+    ctx.lineTo(x, y - s);
+    ctx.lineTo(x + s * 0.8, y - s * 0.1);
+    ctx.lineTo(x + s * 0.8, y + s * 0.8);
+  } else if (b.type === 'castle') {
+    // Keep with three merlons.
+    const w = s * 2.2;
+    const h = s * 1.9;
+    ctx.moveTo(x - w / 2, y + h / 2);
+    ctx.lineTo(x - w / 2, y - h / 2);
+    for (let i = 0; i < 5; i++) {
+      const left = x - w / 2 + (i * w) / 5;
+      const top = i % 2 === 0 ? y - h / 2 : y - h / 2 + 6;
+      ctx.lineTo(left, top);
+      ctx.lineTo(left + w / 5, top);
+    }
+    ctx.lineTo(x + w / 2, y + h / 2);
+  } else {
+    // Port: a circle with an anchor mark.
+    ctx.arc(x, y, s, 0, Math.PI * 2);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  if (b.type === 'port') {
+    ctx.beginPath();
+    ctx.moveTo(x, y - s * 0.6);
+    ctx.lineTo(x, y + s * 0.55);
+    ctx.moveTo(x - s * 0.55, y + s * 0.15);
+    ctx.quadraticCurveTo(x, y + s * 0.95, x + s * 0.55, y + s * 0.15);
+    ctx.stroke();
+  }
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} id @param {string} color */
+function fillCell(ctx, id, color) {
+  const r = cellRect(id);
+  ctx.fillStyle = color;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} id @param {string} color @param {number} width */
+function strokeCell(ctx, id, color, width) {
+  if (id < 0 || id >= CELL_COUNT) return;
+  const r = cellRect(id);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.strokeRect(r.x + width / 2, r.y + width / 2, r.w - width, r.h - width);
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} id @param {string} color @param {number} width */
+function ringPoint(ctx, id, color, width) {
+  const { x, y } = pointPos(id);
+  ctx.beginPath();
+  ctx.arc(x, y, BOARD_VIEW.buildingSize + 5, 0, Math.PI * 2);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.stroke();
+}

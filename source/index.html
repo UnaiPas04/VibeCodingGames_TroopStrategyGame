@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>Troop Strategy</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="./style.css" />
+    <script>
+      // Capture errors before any module loads, so module load failures are visible too.
+      window.__game = { errors: [] };
+      function reportError(message) {
+        window.__game.errors.push(String(message));
+        const banner = document.getElementById('error-banner');
+        if (banner) {
+          banner.hidden = false;
+          banner.textContent = window.__game.errors.join('\n');
+        }
+      }
+      window.addEventListener('error', (e) => reportError(e.error?.stack || e.message || 'Resource failed: ' + (e.target?.src || e.target?.href)), true);
+      window.addEventListener('unhandledrejection', (e) => reportError(e.reason?.stack || e.reason));
+    </script>
+    <script type="module" src="./src/main.js"></script>
+  </head>
+  <body>
+    <main id="stage">
+      <!-- The board canvas fills #board-area; the side panel sits next to it. -->
+      <div id="board-area">
+        <canvas id="game" data-i18n-attr="aria-label:game.canvas"></canvas>
+      </div>
+
+      <!-- Texts come from src/i18n/locales/<language>.json through data-i18n attributes. The game name is not translated. -->
+      <div id="ui">
+        <!-- Side panel, built by src/ui/panel.js during a match. -->
+        <aside id="panel" hidden></aside>
+
+        <section class="screen" data-screen="title" hidden>
+          <h1>Troop Strategy</h1>
+          <p class="hint" data-i18n="title.hint"></p>
+          <button data-action="new-game" data-players="2" data-i18n="menu.players-2"></button>
+          <button data-action="new-game" data-players="3" data-i18n="menu.players-3"></button>
+          <button data-action="new-game" data-players="4" data-i18n="menu.players-4"></button>
+          <button data-action="mute" aria-pressed="false" data-i18n="menu.sound"></button>
+          <button data-action="fullscreen" data-i18n="menu.fullscreen"></button>
+          <button data-action="language"><span data-i18n="menu.language"></span>: <span data-bind="language"></span></button>
+        </section>
+
+        <section class="screen" data-screen="pause" hidden>
+          <h2 data-i18n="pause.title"></h2>
+          <button data-action="resume" data-i18n="menu.resume"></button>
+          <button data-action="restart" data-i18n="menu.restart"></button>
+          <button data-action="menu" data-i18n="menu.main-menu"></button>
+        </section>
+
+        <section class="screen winner" data-screen="gameover" hidden>
+          <h2 data-i18n="gameover.title"></h2>
+          <p class="winner-name" data-bind="winner"></p>
+          <button data-action="restart" data-i18n="menu.play-again"></button>
+          <button data-action="menu" data-i18n="menu.main-menu"></button>
+        </section>
+      </div>
+
+      <pre id="error-banner" role="alert" hidden></pre>
+    </main>
+  </body>
+</html>
