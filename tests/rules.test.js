@@ -115,11 +115,12 @@ test('production: cells with the rolled number pay their majority player', () =>
 
 // ---- Turns ----
 
-test('first turn: the starting troops give their gold, then troops spawn', () => {
+test('first turn: the tower is filled first, then its troops give gold', () => {
   const { state, start } = newGame(createRng(5), 2);
-  assert.equal(start.gold, TROOPS.start);
-  assert.equal(state.players[0].resources.gold, TROOPS.start);
-  assert.equal(state.cells[BASE_CELLS[0]].troops[0], Math.min(TROOPS.maxPerCell, TROOPS.start + TROOPS.spawnPerTower));
+  const inTower = Math.min(TROOPS.maxPerTower, TROOPS.start + TROOPS.spawnPerTower);
+  assert.equal(state.cells[BASE_CELLS[0]].troops[0], inTower);
+  assert.equal(start.gold, inTower);
+  assert.equal(state.players[0].resources.gold, inTower);
   assert.equal(state.phase, 'roll');
 });
 
@@ -133,52 +134,61 @@ test('dice: sums 2, 7 and 12 are rolled again', () => {
 
 test('tower gold counts every tower where the active player has the majority', () => {
   const state = setup(2);
-  put(state, BASE_CELLS[0], [4, 1]); // own tower: 3 gold
+  put(state, BASE_CELLS[0], [3, 1]); // own tower: full, 3 - 1 = 2 gold
   put(state, BASE_CELLS[2], [2, 0]); // rival tower: 2 gold
   state.current = 0;
   const start = startTurn(state);
-  assert.equal(start.gold, 5);
+  assert.equal(start.spawned, 0);
+  assert.equal(start.gold, 4);
 });
 
-test('spawn: up to 2 per owned tower, never over the cell limit', () => {
+test('spawn: every owned tower is filled up to its 4 places, then pays gold', () => {
   const state = setup(2);
   state.cells[BASE_CELLS[2]].towerOwner = 0; // player 0 owns both towers
-  put(state, BASE_CELLS[0], [7, 0]);
+  put(state, BASE_CELLS[0], [3, 0]);
   put(state, BASE_CELLS[2], [1, 0]);
   const start = startTurn(state);
-  assert.equal(start.spawned, 1 + Math.min(TROOPS.spawnPerTower, 7));
-  assert.equal(state.cells[BASE_CELLS[0]].troops[0], 8);
+  assert.equal(start.spawned, 1 + 3);
+  assert.equal(state.cells[BASE_CELLS[0]].troops[0], TROOPS.maxPerTower);
+  assert.equal(start.gold, 2 * TROOPS.maxPerTower);
+});
+
+test('tower cells hold 4 troops at most', () => {
+  const state = setup(2, rich);
+  put(state, BASE_CELLS[0], [0, 3]);
+  put(state, BASE_CELLS[0] + 1, [2, 0]);
+  const r = applyAction(state, { type: 'cart', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0] }, fixedDice([]));
+  assert.equal(r.count, 1, 'only one place left');
+  assert.equal(checkAction(state, { type: 'cart', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0] }), 'error.cell-full');
 });
 
 // ---- Movement ----
 
-test('move: 1 grain, neighbors only, never into a full cell', () => {
-  const state = setup(2, { grain: 5 });
-  put(state, 14, [2, 0]);
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 16 }), 'error.not-neighbor');
-  applyAction(state, { type: 'move', from: 14, to: 15 }, fixedDice([]));
-  assert.equal(state.cells[15].troops[0], 1);
-  assert.equal(state.players[0].resources.grain, 4);
-  put(state, 20, [0, 8]);
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 20 }), 'error.cell-full');
-  state.players[0].resources.grain = 0;
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 13 }), 'error.cannot-pay');
+test('cart: up to 4 troops one cell for 1 wood + 1 grain, all of them if fewer', () => {
+  const state = setup(2, { wood: 5, grain: 5 });
+  put(state, 14, [6, 0]);
+  assert.equal(checkAction(state, { type: 'cart', from: 14, to: 16 }), 'error.not-neighbor');
+  const r = applyAction(state, { type: 'cart', from: 14, to: 15 }, fixedDice([]));
+  assert.equal(r.count, 4);
+  assert.deepEqual([state.cells[14].troops[0], state.cells[15].troops[0]], [2, 4]);
+  assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.grain], [4, 4]);
+  applyAction(state, { type: 'cart', from: 14, to: 13 }, fixedDice([]));
+  assert.equal(state.cells[13].troops[0], 2, 'fewer troops: moves them all');
+  put(state, 21, [0, 6]);
+  assert.equal(applyAction(state, { type: 'cart', from: 15, to: 21 }, fixedDice([])).count, 2, 'only as many as fit');
+  assert.equal(checkAction(state, { type: 'cart', from: 15, to: 21 }), 'error.cell-full');
 });
 
-test('wagon: 3 troops one cell, or 1 troop up to 3 cells', () => {
-  const state = setup(2, rich);
-  put(state, 14, [4, 0]);
-  applyAction(state, { type: 'wagon-group', from: 14, to: 15, count: 3 }, fixedDice([]));
-  assert.equal(state.cells[15].troops[0], 3);
-  assert.equal(checkAction(state, { type: 'wagon-group', from: 15, to: 16, count: 4 }), 'error.bad-count');
-  assert.throws(() => applyAction(state, { type: 'wagon-long', from: 14, to: 31 }, fixedDice([])), /too-far/); // (2,2) -> (5,1): 4 steps
-});
-
-test('wagon long: rejects more than 3 steps', () => {
-  const state = setup(2, rich);
-  put(state, 14, [1, 0]);
-  assert.equal(checkAction(state, { type: 'wagon-long', from: 14, to: 31 }), 'error.too-far');
-  assert.equal(checkAction(state, { type: 'wagon-long', from: 14, to: 27 }), null); // (4,3): 3 steps
+test('horse: up to 2 troops exactly 2 cells for 2 grain, never 1 cell', () => {
+  const state = setup(2, { grain: 4 });
+  put(state, 14, [3, 0]);
+  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 15 }), 'error.horse-distance');
+  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 27 }), 'error.horse-distance'); // 3 steps
+  const r = applyAction(state, { type: 'horse', from: 14, to: 21 }, fixedDice([])); // diagonal: 2 steps
+  assert.equal(r.count, 2);
+  assert.equal(state.players[0].resources.grain, 2);
+  applyAction(state, { type: 'horse', from: 14, to: 16 }, fixedDice([]));
+  assert.equal(state.cells[16].troops[0], 1, 'a single troop rides alone');
 });
 
 test('recruit: only in a cell touching one of your castles', () => {
@@ -312,8 +322,7 @@ test('missing cards are paid with gold automatically', () => {
   const r = applyAction(state, { type: 'build-settlement', point: P }, fixedDice([]));
   assert.equal(r.goldUsed, 1);
   assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.stone, state.players[0].resources.gold], [0, 0, 0]);
-  state.players[0].resources.grain = 0;
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 13 }), 'error.cannot-pay', 'no gold left');
+  assert.equal(checkAction(state, { type: 'horse', from: 14, to: 16 }), 'error.cannot-pay', 'no gold left');
 });
 
 test('gold exchange: 1 gold for 1 resource of your choice', () => {
@@ -327,7 +336,7 @@ test('gold exchange: 1 gold for 1 resource of your choice', () => {
 
 test('elimination: no troops, tower full of one enemy -> the enemy takes the tower and wins', () => {
   const state = setup(2, rich);
-  put(state, BASE_CELLS[0], [0, 8]);
+  put(state, BASE_CELLS[0], [0, 4]);
   put(state, 14, [0, 1]);
   state.buildings[P] = { type: 'settlement', owner: 0 };
   state.current = 0;
@@ -341,7 +350,7 @@ test('elimination: no troops, tower full of one enemy -> the enemy takes the tow
 
 test('elimination is skipped while the player can still recruit next to a castle', () => {
   const state = setup(2, { iron: 1, grain: 1 });
-  put(state, BASE_CELLS[0], [0, 8]);
+  put(state, BASE_CELLS[0], [0, 4]);
   state.buildings[P] = { type: 'castle', owner: 0 };
   state.current = 0;
   assert.deepEqual(startTurn(state).eliminated, []);
@@ -349,7 +358,7 @@ test('elimination is skipped while the player can still recruit next to a castle
 
 test('elimination with mixed enemies leaves a grey tower; a single player then claims it with any number', () => {
   const state = setup(3, rich);
-  put(state, BASE_CELLS[0], [0, 5, 3]);
+  put(state, BASE_CELLS[0], [0, 2, 2]);
   put(state, 14, [0, 1, 1]);
   state.current = 0;
   const start = startTurn(state);
@@ -358,7 +367,7 @@ test('elimination with mixed enemies leaves a grey tower; a single player then c
   assert.equal(state.cells[BASE_CELLS[0]].towerOwner, null);
   // Player 1 (active) kills player 2's troops inside the grey tower: the tower becomes theirs.
   state.phase = 'actions';
-  const r = applyAction(state, { type: 'attack', from: BASE_CELLS[0], target: BASE_CELLS[0], defender: 2, count: 5 }, fixedDice([1, 1]));
+  const r = applyAction(state, { type: 'attack', from: BASE_CELLS[0], target: BASE_CELLS[0], defender: 2, count: 2 }, fixedDice([3, 1]));
   assert.deepEqual(r.claimed, [{ cell: BASE_CELLS[0], player: 1 }]);
 });
 

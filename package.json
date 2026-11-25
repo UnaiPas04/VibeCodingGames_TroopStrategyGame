@@ -6,9 +6,9 @@
   "description": "2D web game prototype: plain Canvas 2D and ES modules, no engine, no build step.",
   "scripts": {
     "dev": "node tools/dev-server.mjs",
-    "test": "node --test tests/",
+    "test": "node --test \"tests/**/*.test.js\"",
     "demo": "node tools/dev-server.mjs --root .claude/templates/game-2d/source --port 5181",
-    "test:demo": "node --test .claude/templates/game-2d/tests/",
+    "test:demo": "node --test \".claude/templates/game-2d/tests/**/*.test.js\"",
     "browsers": "playwright install chromium"
   },
   "devDependencies": {

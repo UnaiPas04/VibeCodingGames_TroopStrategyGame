@@ -1,9 +1,9 @@
-// Turn flow (pure): start of turn (elimination, gold, spawn), dice roll with production, end of turn.
+// Turn flow (pure): start of turn (elimination, spawn, gold), dice roll with production, end of turn.
 // Trial rules: "Turn", T3 and T9.
 
-import { BOARD, COSTS, TROOPS } from '../config.js';
+import { BOARD, COSTS } from '../config.js';
 import { pointCells } from './board.js';
-import { alivePlayers, buildingsOf, canPayWithGold, createState, emptyPurse, freeSlots, majorityGain, totalTroops, towersOf, troopsOnBoard } from './state.js';
+import { alivePlayers, buildingsOf, canPayWithGold, createState, emptyPurse, freeSlots, majorityGain, towersOf, troopsOnBoard } from './state.js';
 import { collectTowerGold, releaseTowers, spawnTroops } from './towers.js';
 
 /** @typedef {import('./state.js').GameState} GameState */
@@ -47,7 +47,7 @@ export function canRecruitSomewhere(/** @type {GameState} */ state, /** @type {n
 /** Elimination conditions (T9): no troops on the board, every owned tower full, and no way to recruit. */
 export function shouldBeEliminated(/** @type {GameState} */ state, /** @type {number} */ player) {
   if (troopsOnBoard(state, player) > 0) return false;
-  if (towersOf(state, player).some((cell) => totalTroops(state, cell) < TROOPS.maxPerCell)) return false;
+  if (towersOf(state, player).some((cell) => freeSlots(state, cell) > 0)) return false;
   return !canRecruitSomewhere(state, player);
 }
 
@@ -61,7 +61,8 @@ export function eliminate(/** @type {GameState} */ state, /** @type {number} */ 
 }
 
 /**
- * Start the active player's turn: elimination check, tower gold, free spawn. Skips eliminated players.
+ * Start the active player's turn: elimination check, free spawn (fills the towers), then tower gold.
+ * Skips eliminated players.
  * @param {GameState} state
  * @returns {TurnStart}
  */
@@ -80,8 +81,8 @@ export function startTurn(state) {
     }
     state.current = nextAlive(state, state.current);
   }
-  const gold = collectTowerGold(state);
   const spawned = spawnTroops(state);
+  const gold = collectTowerGold(state);
   state.phase = 'roll';
   state.dice = null;
   return { player: state.current, eliminated, gold, spawned, winner: null };

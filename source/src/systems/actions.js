@@ -2,16 +2,14 @@
 // checkAction() returns null or an i18n error key; applyAction() applies a valid action and returns
 // a result for the log. Missing resources are paid with gold, 1:1, automatically (except port trades). Trial rules T2, T4-T8; costs in config.js (COSTS).
 
-import { CONQUER_SETTLEMENT_INNER, COSTS, GOLD, PORT_TRADE, RESOURCES, WAGON } from '../config.js';
+import { CONQUER_SETTLEMENT_INNER, COSTS, GOLD, MOVES, PORT_TRADE, RESOURCES } from '../config.js';
 import { areNeighbors, cellCorners, cellDistance, isCell, isPoint, neighborPairsAt, pointCells, pointKind, pointNeighbors, sharedSideEnds } from './board.js';
 import { buildingBonus, resolveFight } from './combat.js';
 import { buildingAt, canPay, canPayWithGold, freeSlots, heldCellsAround, holds, pay, payWithGold, touchesOwnCastle, troopsOf } from './state.js';
 import { claimGreyTowers } from './towers.js';
 
 /**
- * @typedef {{type: 'move', from: number, to: number}
- *   | {type: 'wagon-group', from: number, to: number, count: number}
- *   | {type: 'wagon-long', from: number, to: number}
+ * @typedef {{type: 'cart' | 'horse', from: number, to: number}
  *   | {type: 'recruit', cell: number}
  *   | {type: 'attack', from: number, target: number, defender: number, count: number}
  *   | {type: 'build-settlement', point: number}
@@ -32,11 +30,10 @@ import { claimGreyTowers } from './towers.js';
  */
 export function costOf(state, action) {
   switch (action.type) {
-    case 'move':
-      return COSTS.move;
-    case 'wagon-group':
-    case 'wagon-long':
-      return COSTS.wagon;
+    case 'cart':
+      return COSTS.cart;
+    case 'horse':
+      return COSTS.horse;
     case 'recruit':
       return COSTS.recruit;
     case 'attack':
@@ -90,6 +87,17 @@ export function meetsConquerCondition(/** @type {GameState} */ state, /** @type 
   return held === touching;
 }
 
+/**
+ * Troops a cart or horse move carries: up to its limit, as many as the source has and the destination fits.
+ * @param {GameState} state
+ * @param {'cart' | 'horse'} type
+ * @param {number} from
+ * @param {number} to
+ */
+export function moveCount(state, type, from, to) {
+  return Math.max(0, Math.min(MOVES[type].troops, troopsOf(state, from, state.current), freeSlots(state, to)));
+}
+
 /** @param {unknown} n */
 const isCount = (n) => Number.isInteger(n) && /** @type {number} */ (n) >= 1;
 
@@ -107,17 +115,12 @@ export function checkAction(state, action) {
   const affordable = () => (canPayWithGold(purse, costOf(state, action)) ? null : 'error.cannot-pay');
 
   switch (action.type) {
-    case 'move':
-    case 'wagon-group':
-    case 'wagon-long': {
+    case 'cart':
+    case 'horse': {
       if (!isCell(action.from) || !isCell(action.to) || action.from === action.to) return 'error.invalid-target';
-      const count = action.type === 'wagon-group' ? action.count : 1;
-      if (!isCount(count) || count > WAGON.groupSize) return 'error.bad-count';
-      if (action.type === 'wagon-long') {
-        if (cellDistance(action.from, action.to) > WAGON.range) return 'error.too-far';
-      } else if (!areNeighbors(action.from, action.to)) return 'error.not-neighbor';
-      if (troopsOf(state, action.from, me) < count) return 'error.not-enough-troops';
-      if (freeSlots(state, action.to) < count) return 'error.cell-full';
+      if (cellDistance(action.from, action.to) !== MOVES[action.type].cells) return action.type === 'cart' ? 'error.not-neighbor' : 'error.horse-distance';
+      if (troopsOf(state, action.from, me) < 1) return 'error.not-enough-troops';
+      if (freeSlots(state, action.to) < 1) return 'error.cell-full';
       return affordable();
     }
     case 'recruit':
@@ -205,10 +208,9 @@ export function applyAction(state, action, rng) {
   /** @type {Record<string, any>} */
   let result;
   switch (action.type) {
-    case 'move':
-    case 'wagon-group':
-    case 'wagon-long': {
-      const count = action.type === 'wagon-group' ? action.count : 1;
+    case 'cart':
+    case 'horse': {
+      const count = moveCount(state, action.type, action.from, action.to);
       state.cells[action.from].troops[me] -= count;
       state.cells[action.to].troops[me] += count;
       result = { from: action.from, to: action.to, count };

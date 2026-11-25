@@ -1,7 +1,8 @@
 // Draws the board on the canvas: cells, numbers, towers, troops, buildings and highlights. Greybox shapes only.
 
-import { BOARD_VIEW, PLAYERS, TROOPS, VIEW } from '../config.js';
+import { BOARD_VIEW, PLAYERS, VIEW } from '../config.js';
 import { CELL_COUNT } from '../systems/board.js';
+import { capacity } from '../systems/state.js';
 import { cellCenter, cellRect, pointPos, troopSlot } from './board-layout.js';
 
 const C = BOARD_VIEW.colors;
@@ -9,13 +10,15 @@ const OUTLINE = '#0d0e13';
 
 /**
  * @typedef {object} Highlights
- * @property {'cell' | 'point'} [targetKind]
- * @property {number[]} [targets] Ids a click would accept.
- * @property {'cell' | 'point'} [sourceKind]
- * @property {number | null} [source]
+ * @property {number[]} [moves] Cart destinations (next cell).
+ * @property {number[]} [farMoves] Horse destinations (2 steps).
+ * @property {number[]} [attacks] Cells the selected troops can attack.
+ * @property {number[]} [points] Intersections with something to do (circles).
+ * @property {number | null} [source] Selected cell with your troops.
+ * @property {number | null} [sourcePoint] Settlement being moved.
  * @property {number | null} [selectedCell]
  * @property {number | null} [hoverCell]
- * @property {number | null} [hoverPoint]
+ * @property {number | null} [hoverPoint] Circle under the pointer.
  */
 
 /** @param {number | null} owner */
@@ -31,18 +34,43 @@ export function drawBoard(ctx, state, hl) {
   ctx.fillRect(0, 0, VIEW.width, VIEW.height);
 
   for (const cell of state.cells) drawCell(ctx, cell);
-  if (hl.targetKind === 'cell') for (const id of hl.targets ?? []) fillCell(ctx, id, C.target);
-  for (const cell of state.cells) drawTroops(ctx, cell);
+  for (const id of hl.moves ?? []) fillCell(ctx, id, C.target);
+  for (const id of hl.farMoves ?? []) fillCell(ctx, id, C.targetFar);
+  for (const id of hl.attacks ?? []) fillCell(ctx, id, C.attack);
+  for (const cell of state.cells) drawTroops(ctx, state, cell);
   for (const [point, b] of Object.entries(state.buildings)) drawBuilding(ctx, Number(point), b);
-  if (hl.targetKind === 'point') for (const id of hl.targets ?? []) ringPoint(ctx, id, C.target, 5);
+  for (const id of hl.points ?? []) drawPointCircle(ctx, id, id === hl.hoverPoint, id in state.buildings);
 
-  if (hl.hoverCell != null && hl.targetKind !== 'point') strokeCell(ctx, hl.hoverCell, 'rgba(255,255,255,0.5)', 2);
-  if (hl.hoverPoint != null && hl.targetKind === 'point') ringPoint(ctx, hl.hoverPoint, 'rgba(255,255,255,0.7)', 2);
+  if (hl.hoverCell != null && hl.hoverPoint == null) strokeCell(ctx, hl.hoverCell, 'rgba(255,255,255,0.5)', 2);
   if (hl.selectedCell != null) strokeCell(ctx, hl.selectedCell, C.select, 3);
-  if (hl.source != null) {
-    if (hl.sourceKind === 'point') ringPoint(ctx, hl.source, C.select, 3);
-    else strokeCell(ctx, hl.source, C.select, 4);
+  if (hl.source != null) strokeCell(ctx, hl.source, C.select, 4);
+  if (hl.sourcePoint != null) ringPoint(ctx, hl.sourcePoint, C.select, 3);
+}
+
+/**
+ * Clickable circle on an intersection: build, promote, conquer, trade or move a settlement.
+ * Around an existing building it is a ring, so the building stays visible.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {number} id
+ * @param {boolean} hover
+ * @param {boolean} hasBuilding
+ */
+function drawPointCircle(ctx, id, hover, hasBuilding) {
+  const { x, y } = pointPos(id);
+  ctx.beginPath();
+  if (hasBuilding) {
+    ctx.arc(x, y, BOARD_VIEW.buildingSize + 6, 0, Math.PI * 2);
+    ctx.lineWidth = hover ? 4 : 2;
+    ctx.strokeStyle = C.point;
+    ctx.stroke();
+    return;
   }
+  ctx.arc(x, y, BOARD_VIEW.pointCircle + (hover ? 3 : 0), 0, Math.PI * 2);
+  ctx.fillStyle = hover ? C.point : 'rgba(255,255,255,0.25)';
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = C.point;
+  ctx.stroke();
 }
 
 /** @param {CanvasRenderingContext2D} ctx @param {import('../systems/board.js').Cell} cell */
@@ -105,12 +133,17 @@ function drawTower(ctx, x, y, color) {
   ctx.fillRect(x - 3, y + h / 2 - 9, 6, 9);
 }
 
-/** @param {CanvasRenderingContext2D} ctx @param {import('../systems/board.js').Cell} cell */
-function drawTroops(ctx, cell) {
+/**
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('../systems/state.js').GameState} state
+ * @param {import('../systems/board.js').Cell} cell
+ */
+function drawTroops(ctx, state, cell) {
+  const slots = capacity(state, cell.id);
   let slot = 0;
   cell.troops.forEach((n, player) => {
-    for (let i = 0; i < n && slot < TROOPS.maxPerCell; i++, slot++) {
-      const p = troopSlot(cell.id, slot);
+    for (let i = 0; i < n && slot < slots; i++, slot++) {
+      const p = troopSlot(cell.id, slot, slots);
       ctx.beginPath();
       ctx.arc(p.x, p.y, BOARD_VIEW.troopRadius, 0, Math.PI * 2);
       ctx.fillStyle = PLAYERS.colors[player];

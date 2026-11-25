@@ -21,7 +21,8 @@ export const BOARD_VIEW = {
   troopRadius: 9,
   numberRadius: 17,
   buildingSize: 13, // half size of a building at an intersection
-  pointPick: 50, // max distance to pick an intersection with a click
+  pointCircle: 8, // radius of the circle drawn on intersections with something to do
+  pointPick: 18, // max distance to click an intersection circle
   colors: {
     wood: '#2f6b3a',
     stone: '#6f727c',
@@ -34,7 +35,10 @@ export const BOARD_VIEW = {
     numberHot: '#c0392b', // 6 and 8, the most likely numbers
     numberText: '#1b1b22',
     select: '#ffffff',
-    target: 'rgba(255, 255, 255, 0.28)'
+    target: 'rgba(255, 255, 255, 0.28)', // cart destinations
+    targetFar: 'rgba(255, 255, 255, 0.14)', // horse destinations
+    attack: 'rgba(229, 72, 77, 0.45)', // cells you can attack
+    point: 'rgba(255, 255, 255, 0.9)' // intersection circles
   }
 };
 
@@ -85,15 +89,23 @@ export const PLAYERS = {
 };
 
 export const TROOPS = {
-  maxPerCell: 8, // all players together
+  maxPerCell: 8, // all players together, in a normal cell
+  maxPerTower: 4, // all players together, in a tower cell; 4 enemies there besiege the owner
   start: 4, // troops in each player's tower cell at the start
-  spawnPerTower: 4 // free troops added to each owned tower cell at the start of the owner's turn
+  spawnPerTower: 4 // free troops added to each owned tower cell at the start of the owner's turn (fills it)
 };
 
-export const WAGON = {
-  groupSize: 3, // troops moved one cell together
-  range: 3 // cells a single troop travels
+/**
+ * The two ways to move troops. Each moves up to `troops` (fewer if the source has fewer or the
+ * destination has less room) exactly `cells` orthogonal steps away. Costs are in COSTS.
+ */
+export const MOVES = {
+  cart: { troops: 4, cells: 1 },
+  horse: { troops: 2, cells: 2 }
 };
+
+/** Roll the dice automatically at the start of each turn (it is never a choice). */
+export const AUTO_ROLL = true;
 
 /** Combat bonus of each building on the relevant corners (see trial rules T6). */
 export const BUILDING_BONUS = { settlement: 1, castle: 2, port: 0 };
@@ -106,8 +118,8 @@ export const PORT_TRADE = { give: 2, gold: 1 }; // port goods paid -> gold recei
  */
 export const COSTS = {
   recruit: { iron: 1, grain: 1 },
-  move: { grain: 1 },
-  wagon: { wood: 1, grain: 1 },
+  cart: { wood: 1, grain: 1 },
+  horse: { grain: 2 },
   attackInside: { iron: 1 },
   attackOutside: { iron: 1, grain: 1 },
   settlement: { stone: 1, wood: 1 },

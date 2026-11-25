@@ -56,8 +56,8 @@ _Fills the official "Resources" section._
 _Fills the official "Platoon" section._
 
 - Troops stand **inside cells**.
-- Troops of **several players can share a cell**, up to **8 troops in total** per cell.
-- A full cell accepts no more troops: no move, wagon, recruit or spawn can put a troop into it.
+- Troops of **several players can share a cell**, up to **8 troops in total** per cell, or **4 in a tower cell**. Four enemy troops in a tower cell fill it and besiege its owner.
+- A full cell accepts no more troops: no move, recruit or spawn can put a troop into it.
 - On screen, the 8 troop slots form a circle around the center of the cell, so troops never hide the cell number or the tower.
 - **Recruit troop:** place 1 troop in a cell touching one of your castles.
 - **Spawn:** at the start of your turn, free troops appear in your tower cell (see [Turn](#turn)).
@@ -90,11 +90,16 @@ _Replaces the official "Resource production" section._
 
 ## T4. Movement
 
-- **Move troop:** move 1 troop to a neighboring cell (orthogonally, no diagonals).
-- **No movement limit:** a troop can move as many times per turn as the player can pay for.
-- **Wagon:** choose one of two uses:
-  - move up to **3 troops one cell** (all from the same cell to the same neighboring cell); or
-  - move **1 troop up to 3 cells**.
+- **Move troops** has two forms. Both take troops from one cell to one cell, counting orthogonal steps (no diagonals):
+
+  | Form | Troops | Distance | Cost |
+  | --- | --- | --- | --- |
+  | **Cart** | up to **4** | exactly **1 cell** | 1 wood + 1 grain |
+  | **Horse** | up to **2** | exactly **2 cells** (never 1) | 2 grain |
+
+- A move always carries as many troops as it can: its limit, or all your troops in the source if there are fewer, or as many as fit in the destination.
+- On the horse, only the destination needs room: the troops pass through any cell.
+- **No movement limit:** you can move as many times per turn as you can pay for.
 - **Ship:** left out of the trial for now.
 - Troops can move into any cell with free slots, including cells with enemy troops and a rival's base cell. That does not start a fight: fighting is a separate action.
 - Moving in without fighting is useful on its own: your troops lower what the majority player collects there, or stop them from collecting at all.
@@ -214,20 +219,20 @@ An eliminated player never gets another turn. Their resource cards are discarded
 _Replaces the official "Turn" section while cards are left out._
 
 1. **Elimination check:** if you meet the [elimination](#elimination) conditions, you are out and your turn ends. If only one player is left, they win.
-2. **Gold:** collect gold from every tower cell where you have the majority.
-3. **Spawn:** add up to **4 free troops** to each tower cell you own, without exceeding the cell limit.
-4. **Roll:** roll two dice, reroll on 2, 7 or 12, and resolve [production](#normal-cells) for every player.
+2. **Spawn:** fill each tower cell you own with free troops, up to its limit of 4 (troops still there, yours or enemies, take their places).
+3. **Gold:** collect gold from every tower cell where you have the majority. Spawning first rewards leaving the base: troops that leave are replaced for free and the tower still pays.
+4. **Roll:** roll two dice (automatically), reroll on 2, 7 or 12, and resolve [production](#normal-cells) for every player.
 5. **Actions:** buy any actions you can pay for.
 
-First turn example: you start with 4 troops in your tower cell, so step 1 gives you 4 gold, then 4 more troops spawn and the cell is full.
+First turn example: you start with 4 troops in your tower cell, which is already full, so no troop spawns and you collect 4 gold.
 
 ## Costs
 
 | Action | Cost |
 | --- | --- |
 | Recruit troop | 1 iron + 1 grain |
-| Move troop (one cell) | 1 grain |
-| Wagon (3 troops 1 cell, or 1 troop 3 cells) | 1 wood + 1 grain |
+| Cart (up to 4 troops, 1 cell) | 1 wood + 1 grain |
+| Horse (up to 2 troops, 2 cells) | 2 grain |
 | Ship | left out |
 | Attack from inside | 1 iron |
 | Attack from outside | 1 iron + 1 grain |
@@ -239,7 +244,7 @@ First turn example: you start with 4 troops in your tower cell, so step 1 gives 
 | Trade at port | 2 port goods → 1 gold |
 | Gold exchange | 1 gold → 1 resource of your choice |
 
-Stone and wood pay for buildings; iron and grain pay for troops, movement and fights.
+Stone and wood pay for buildings; iron and grain pay for troops, movement and fights. If cards are missing when you buy an action, gold pays for them 1:1 automatically.
 
 ## Open questions
 

@@ -18,12 +18,14 @@ Move troops (and fight with them) to win cell majorities.
 
 | Action | Mouse | Keyboard |
 | ------ | ----- | -------- |
-| Choose an action | Click a tool in the side panel | Tab to the button, Enter |
-| Pick a source and a target | Click a cell or an intersection on the board | – |
-| Cancel the action, or pause | – | Escape |
-| Roll, end the turn, fight, trade | Panel buttons | Tab, Enter |
+| Move troops | Click one of your cells, then a highlighted cell: next to it = cart, 2 steps away = horse | – |
+| Attack | With a cell selected, click a red cell (or your selected cell, to attack inside it) | Popup buttons: Tab, Enter |
+| Build, promote, conquer, trade, move a settlement | Click a white circle on an intersection, then pick in the popup | Tab, Enter |
+| Recruit | Click a cell touching your castle (or your selected cell again) | – |
+| End turn | Panel button | Tab, Enter |
+| Cancel, or pause | – | Escape |
 
-Valid targets are highlighted. Clicking a cell without a tool shows its details.
+The dice are rolled automatically. Choices open in a popup next to the click. Clicking a cell with nothing to do there shows its details.
 
 ## Core loop
 
@@ -54,18 +56,20 @@ Everything is in `source/src/config.js`:
 | Value | What it changes |
 | ----- | --------------- |
 | `COSTS` | Cost of every action. |
-| `TROOPS.maxPerCell`, `start`, `spawnPerTower` | Cell limit, starting troops, free troops per tower per turn. |
+| `TROOPS.maxPerCell`, `maxPerTower`, `start`, `spawnPerTower` | Cell limits, starting troops, free troops per tower per turn. |
 | `BUILDING_BONUS` | Combat bonus of settlements, castles and ports. |
-| `WAGON` | Troops moved together, cells travelled. |
+| `MOVES` | Troops and distance of the cart and the horse. |
+| `AUTO_ROLL` | Roll the dice automatically at the start of each turn. |
 | `PORT_TRADE` | Port goods paid for 1 gold. |
 | `CONQUER_SETTLEMENT_INNER` | Cells to hold to conquer an inner settlement. |
 | `BOARD.rerollSums` | Dice sums rolled again. |
 
-Debug: `?debug` shows the overlay; `?seed=N` repeats a board; `?scene=play&players=3` skips the menu. `window.__game.play` has `act(action)`, `roll()`, `endTurn()`, `click(cell, point)` and `state()`.
+Debug: `?debug` shows the overlay; `?seed=N` repeats a board; `?scene=play&players=3` skips the menu. `window.__game.play` has `act(action)`, `roll()`, `endTurn()`, `click(cell, point)`, `choose(index)` and `state()`.
 
 ## Log
 
 | Date | Change or playtest | Result (keep / kill / retune) |
 | ---- | ------------------ | ----------------------------- |
 | 2026-11-25 | First playable greybox of the trial rules. | Too slow: retune. |
-| 2026-11-25 | Bases moved to quadrant centers, 4 starting troops, spawn 4 per turn, missing cards paid with gold automatically. | Pending playtest. |
+| 2026-11-25 | Bases moved to quadrant centers, 4 starting troops, spawn 4 per turn, missing cards paid with gold automatically. | Retune movement and controls. |
+| 2026-11-25 | Cart (4 troops, 1 cell) and horse (2 troops, 2 cells) replace move and wagon; tower cells hold 4; spawn before gold; board clicks and popups replace the tool buttons; automatic dice roll. | Pending playtest. |

@@ -73,7 +73,11 @@ export const troopsOf = (/** @type {GameState} */ state, /** @type {number} */ c
 export const totalTroops = (/** @type {GameState} */ state, /** @type {number} */ cell) =>
   cellAt(state, cell).troops.reduce((a, b) => a + b, 0);
 
-export const freeSlots = (/** @type {GameState} */ state, /** @type {number} */ cell) => TROOPS.maxPerCell - totalTroops(state, cell);
+/** Most troops a cell can hold: fewer in tower cells. */
+export const capacity = (/** @type {GameState} */ state, /** @type {number} */ cell) =>
+  cellAt(state, cell).kind === 'tower' ? TROOPS.maxPerTower : TROOPS.maxPerCell;
+
+export const freeSlots = (/** @type {GameState} */ state, /** @type {number} */ cell) => capacity(state, cell) - totalTroops(state, cell);
 
 /** Hold a cell: at least one of your troops and none of anybody else. */
 export function holds(/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ cell) {

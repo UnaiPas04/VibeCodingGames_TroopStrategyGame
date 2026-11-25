@@ -29,7 +29,7 @@ export function spawnTroops(state) {
   const player = state.current;
   let spawned = 0;
   for (const id of towersOf(state, player)) {
-    const n = Math.min(TROOPS.spawnPerTower, freeSlots(state, id));
+    const n = Math.max(0, Math.min(TROOPS.spawnPerTower, freeSlots(state, id)));
     state.cells[id].troops[player] += n;
     spawned += n;
   }
