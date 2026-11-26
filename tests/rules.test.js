@@ -1,384 +1,214 @@
-// Tests for the trial rules (docs/trial-rules.md): board, production, actions, combat, towers and turns.
+// Tests for the trial rules (docs/trial-rules.md): board, setup, production, roads, buildings and turns.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { BOARD, COSTS, RESOURCES, TROOPS } from '../source/src/config.js';
+import { BOARD, COSTS, GOLD, PRODUCTION, RESOURCES } from '../source/src/config.js';
 import { createRng } from '../source/src/core/rng.js';
-import { applyAction, checkAction, fittingCount, moveCost, portGoods } from '../source/src/systems/actions.js';
+import { applyAction, checkAction, portGoods } from '../source/src/systems/actions.js';
 import {
-  BASE_CELLS,
   CELL_COUNT,
+  EDGE_COUNT,
+  GOLD_CELLS,
   POINT_COUNT,
-  cellNeighbors,
+  edgeBetween,
+  edgeEnds,
   generateCells,
-  neighborPairsAt,
   pointCells,
+  pointEdges,
   pointKind,
-  quadrantOf,
-  sharedSideEnds
+  quadrantOf
 } from '../source/src/systems/board.js';
-import { winChance } from '../source/src/systems/combat.js';
-import { createState, majorityGain } from '../source/src/systems/state.js';
-import { endTurn, newGame, produce, rollDice, startTurn } from '../source/src/systems/turn.js';
+import { createState } from '../source/src/systems/state.js';
+import { endTurn, newGame, placeStart, produce, rollDice } from '../source/src/systems/turn.js';
 
 // Board layout used below (6 x 6): cell id = row * 6 + col; intersection id = row * 7 + col.
-// Inner intersection 24 = (3,3) touches cells 14, 15, 20, 21. Coast intersection 3 = (0,3) touches cells 2 and 3.
+// Inner intersection 24 = (3,3) touches cells 14, 15, 20, 21. Its neighbors: 17 (up), 25 (right), 31 (down), 23 (left).
+// Coast intersection 3 = (0,3) touches cells 2 and 3. Corner intersection 0 touches cell 0.
 const P = 24;
-const AROUND_P = [14, 15, 20, 21];
 
 /** Fake rng with fixed dice values. @param {number[]} dice */
 const fixedDice = (dice) => ({ int: () => /** @type {number} */ (dice.shift()), shuffle: (/** @type {any[]} */ l) => [...l] });
 
-/** A state in the actions phase with no troops anywhere and the given resources for every player. */
+/** A state in the actions phase with no buildings and the given resources for every player. */
 function setup(playerCount = 2, resources = {}) {
   const state = createState(createRng(1), playerCount);
-  for (const cell of state.cells) cell.troops.fill(0);
   for (const p of state.players) Object.assign(p.resources, resources);
   state.phase = 'actions';
+  state.turn = 1;
   return state;
 }
 
-/** @param {any} state @param {number} cell @param {number[]} troops */
-const put = (state, cell, troops) => troops.forEach((n, p) => (state.cells[cell].troops[p] = n));
+const road = (/** @type {number} */ a, /** @type {number} */ b) => /** @type {number} */ (edgeBetween(a, b));
 
-const rich = { wood: 20, stone: 20, grain: 20, iron: 20, gold: 0 };
-
-// ---- Board ----
-
-test('board geometry: neighbors, intersection kinds and shared sides', () => {
-  assert.deepEqual(cellNeighbors(0).sort(), [1, 6]);
-  assert.equal(cellNeighbors(14).length, 4);
-  const kinds = { inner: 0, coast: 0, corner: 0 };
-  for (let p = 0; p < POINT_COUNT; p++) kinds[pointKind(p)]++;
-  assert.deepEqual(kinds, { inner: 25, coast: 20, corner: 4 });
-  assert.deepEqual(pointCells(P).sort((a, b) => a - b), AROUND_P);
-  assert.deepEqual(sharedSideEnds(14, 15).sort((a, b) => a - b), [17, 24]);
-  assert.equal(neighborPairsAt(P).length, 4);
-  assert.equal(neighborPairsAt(3).length, 1);
-  assert.equal(neighborPairsAt(0).length, 0);
-});
-
-test('generation: every quadrant has each number once and 2 cells of each resource', () => {
-  for (const seed of [1, 2, 3]) {
-    const cells = generateCells(createRng(seed), 4);
+test('board: gold cells in place, every cell numbered, balanced quadrants with one extra number each', () => {
+  for (let seed = 1; seed <= 20; seed++) {
+    const cells = generateCells(createRng(seed));
+    assert.equal(cells.length, CELL_COUNT);
+    for (const id of GOLD_CELLS) assert.deepEqual([cells[id].kind, cells[id].resource], ['gold', GOLD]);
+    /** @type {number[]} */
+    const extras = [];
     for (let q = 0; q < 4; q++) {
-      const normal = cells.filter((c) => quadrantOf(c.id) === q && c.kind === 'normal');
-      assert.equal(normal.length, 8);
-      assert.deepEqual(normal.map((c) => c.number).sort((a, b) => /** @type {number} */ (a) - /** @type {number} */ (b)), BOARD.numbers);
-      for (const r of RESOURCES) assert.equal(normal.filter((c) => c.resource === r).length, 2);
+      const quadrant = cells.filter((c) => quadrantOf(c.id) === q);
+      const numbers = quadrant.map((c) => c.number).sort((a, b) => a - b);
+      const extra = [...numbers];
+      for (const n of BOARD.numbers) extra.splice(extra.indexOf(n), 1);
+      assert.equal(extra.length, 1, 'each number once plus one extra');
+      extras.push(extra[0]);
+      for (const r of RESOURCES) assert.equal(quadrant.filter((c) => c.resource === r).length, 2, `quadrant ${q}: two ${r}`);
     }
+    assert.deepEqual(extras.sort((a, b) => a - b), [...BOARD.extraNumbers].sort((a, b) => a - b), 'a different extra number per quadrant');
   }
 });
 
-test('generation: towers in the players bases (quadrant centers), empty bases for missing players', () => {
-  assert.deepEqual(BASE_CELLS.map(quadrantOf), [0, 1, 2, 3]);
-  const cells = generateCells(createRng(1), 3);
-  const kinds = BASE_CELLS.map((id) => cells[id].kind);
-  assert.deepEqual(kinds, ['tower', 'tower', 'tower', 'empty']);
-  assert.deepEqual(BASE_CELLS.slice(0, 3).map((id) => cells[id].towerOwner), [0, 1, 2]);
-  for (const id of BASE_CELLS) assert.equal(cells[id].number, null);
-  assert.equal(cells[BASE_CELLS[0]].resource, 'gold');
-  assert.equal(cells[BASE_CELLS[3]].resource, null);
-  const two = generateCells(createRng(1), 2);
-  assert.equal(two[BASE_CELLS[2]].towerOwner, 1, '2 players take opposite corners');
-  assert.equal(cells.length, CELL_COUNT);
-});
-
-// ---- Production ----
-
-test('majority gain follows the trial rule table', () => {
-  const state = setup(3);
-  const cases = [
-    [[3, 0, 0], { player: 0, amount: 3 }],
-    [[5, 1, 2], { player: 0, amount: 2 }],
-    [[3, 3, 0], null],
-    [[3, 2, 2], null],
-    [[0, 0, 0], null],
-    [[1, 4, 0], { player: 1, amount: 3 }]
-  ];
-  for (const [troops, expected] of cases) {
-    put(state, 14, /** @type {number[]} */ (troops));
-    assert.deepEqual(majorityGain(state, 14), expected, JSON.stringify(troops));
+test('edges: ends and lookup agree; 4 edges inside, 3 on the coast, 2 at a corner', () => {
+  assert.equal(EDGE_COUNT, 84);
+  for (let e = 0; e < EDGE_COUNT; e++) {
+    const [a, b] = edgeEnds(e);
+    assert.equal(edgeBetween(a, b), e);
+    assert.equal(edgeBetween(b, a), e);
   }
+  assert.equal(edgeBetween(0, 8), null, 'diagonal points are not joined');
+  assert.equal(pointEdges(P).length, 4);
+  assert.equal(pointEdges(3).length, 3);
+  assert.equal(pointEdges(0).length, 2);
+  assert.deepEqual(pointCells(P), [14, 15, 20, 21]);
+  assert.equal(POINT_COUNT, 49);
 });
 
-test('production: cells with the rolled number pay their majority player', () => {
+test('setup: each player places a free castle (inside) or port (coast or corner), then turn 1 starts', () => {
+  const state = newGame(createRng(2), 3);
+  assert.equal(state.phase, 'setup');
+  assert.equal(checkAction(state, { type: 'build-road', edge: 0 }), 'error.place-start-first');
+  assert.equal(placeStart(state, P).building, 'castle');
+  assert.equal(state.current, 1);
+  assert.throws(() => placeStart(state, P), /point-taken/);
+  assert.equal(placeStart(state, 3).building, 'port');
+  const last = placeStart(state, 0);
+  assert.equal(last.building, 'port');
+  assert.equal(last.setupDone, true);
+  assert.deepEqual([state.phase, state.current, state.turn], ['roll', 0, 1]);
+  assert.deepEqual(state.players[0].resources, { wood: 0, stone: 0, grain: 0, iron: 0, gold: 0 }, 'the start building is free');
+  assert.equal(checkAction(state, { type: 'place-start', point: 10 }), 'error.invalid-target', 'no more free buildings');
+});
+
+test('production: each building on a corner of the rolled cell collects (settlement 1, castle 2, port 2), and they add up', () => {
   const state = setup(2);
-  const cell = state.cells.find((c) => c.kind === 'normal');
-  if (!cell || cell.number === null || cell.resource === null) throw new Error('no normal cell');
-  put(state, cell.id, [3, 1]);
-  const before = state.players[0].resources[cell.resource];
-  const gains = produce(state, cell.number);
-  assert.ok(gains.some((g) => g.cell === cell.id && g.amount === 2));
-  assert.equal(state.players[0].resources[cell.resource], before + 2);
+  state.cells.forEach((c) => (c.number = 3)); // nothing else produces
+  state.cells[14].number = 9;
+  state.cells[14].resource = 'wood';
+  state.cells[14].kind = 'normal';
+  // Cell 14 corners: 16, 17, 24, 23.
+  state.buildings[16] = { type: 'castle', owner: 0 };
+  state.buildings[17] = { type: 'settlement', owner: 0 };
+  state.buildings[24] = { type: 'settlement', owner: 1 };
+  const gains = produce(state, 9);
+  assert.equal(state.players[0].resources.wood, PRODUCTION.castle + PRODUCTION.settlement);
+  assert.equal(state.players[1].resources.wood, PRODUCTION.settlement);
+  assert.equal(gains.length, 2);
+  assert.equal(PRODUCTION.port, 2);
 });
 
-// ---- Turns ----
-
-test('first turn: the tower is filled first, then its troops give gold', () => {
-  const { state, start } = newGame(createRng(5), 2);
-  const inTower = Math.min(TROOPS.maxPerTower, TROOPS.start + TROOPS.spawnPerTower);
-  assert.equal(state.cells[BASE_CELLS[0]].troops[0], inTower);
-  assert.equal(start.gold, inTower);
-  assert.equal(state.players[0].resources.gold, inTower);
-  assert.equal(state.phase, 'roll');
-});
-
-test('dice: sums 2, 7 and 12 are rolled again', () => {
-  const { state } = newGame(createRng(5), 2);
-  const roll = rollDice(state, fixedDice([1, 1, 3, 4, 6, 6, 2, 3]));
-  assert.deepEqual(roll.rerolled, [2, 7, 12]);
-  assert.equal(roll.sum, 5);
-  assert.equal(state.phase, 'actions');
-});
-
-test('tower gold counts every tower where the active player has the majority', () => {
+test('production: gold cells give gold; a roll produces only the cells with that number', () => {
   const state = setup(2);
-  put(state, BASE_CELLS[0], [3, 1]); // own tower: full, 3 - 1 = 2 gold
-  put(state, BASE_CELLS[2], [2, 0]); // rival tower: 2 gold
-  state.current = 0;
-  const start = startTurn(state);
-  assert.equal(start.spawned, 0);
-  assert.equal(start.gold, 4);
+  state.cells.forEach((c) => (c.number = 3));
+  const gold = GOLD_CELLS[0]; // cell 7: corners 8, 9, 16, 15
+  state.cells[gold].number = 10;
+  state.buildings[8] = { type: 'castle', owner: 0 };
+  state.phase = 'roll';
+  const r = rollDice(state, fixedDice([1, 1, 4, 6])); // 2 is rolled again, then 10
+  assert.deepEqual(r.rerolled, [2]);
+  assert.equal(state.players[0].resources[GOLD], PRODUCTION.castle);
+  assert.equal(state.players[0].resources.wood, 0);
 });
 
-test('spawn: every owned tower is filled up to its 4 places, then pays gold', () => {
-  const state = setup(2);
-  state.cells[BASE_CELLS[2]].towerOwner = 0; // player 0 owns both towers
-  put(state, BASE_CELLS[0], [3, 0]);
-  put(state, BASE_CELLS[2], [1, 0]);
-  const start = startTurn(state);
-  assert.equal(start.spawned, 1 + 3);
-  assert.equal(state.cells[BASE_CELLS[0]].troops[0], TROOPS.maxPerTower);
-  assert.equal(start.gold, 2 * TROOPS.maxPerTower);
-});
-
-test('tower cells hold 4 troops at most', () => {
-  const state = setup(2, rich);
-  put(state, BASE_CELLS[0], [0, 3]);
-  put(state, BASE_CELLS[0] + 1, [2, 0]);
-  assert.equal(checkAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 2 }), 'error.cell-full', 'only one place left');
-  applyAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 1 }, fixedDice([]));
-  assert.equal(checkAction(state, { type: 'move', from: BASE_CELLS[0] + 1, to: BASE_CELLS[0], count: 1 }), 'error.cell-full');
-});
-
-// ---- Movement ----
-
-test('move cost: half a grain per troop and cell, rounded up', () => {
-  const cases = [
-    [1, 1, 1],
-    [2, 1, 1],
-    [3, 1, 2],
-    [8, 2, 8],
-    [3, 3, 5]
-  ];
-  for (const [count, cells, grain] of cases) assert.deepEqual(moveCost(count, cells), { grain }, `${count} troops ${cells} cells`);
-});
-
-test('move: pick the troops and the distance, pay grain only', () => {
-  const state = setup(2, { wood: 0, grain: 9 });
-  put(state, 14, [6, 0]);
-  const r = applyAction(state, { type: 'move', from: 14, to: 16, count: 4 }, fixedDice([])); // 2 cells
-  assert.deepEqual([r.count, r.cells], [4, 2]);
-  assert.deepEqual([state.cells[14].troops[0], state.cells[16].troops[0]], [2, 4]);
-  assert.equal(state.players[0].resources.grain, 9 - 4);
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 35, count: 1 }), null, 'any distance: (2,2) -> (5,5) is 6 cells');
-  assert.deepEqual(moveCost(1, 6), { grain: 3 });
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 15, count: 3 }), 'error.not-enough-troops');
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 15, count: 0 }), 'error.bad-count');
-  put(state, 20, [0, 7]);
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 20, count: 2 }), 'error.cell-full');
-  assert.equal(fittingCount(state, 2, 14, 20), 1, 'the board offers only what fits');
-});
-
-test('recruit: only in a cell touching one of your castles', () => {
-  const state = setup(2, rich);
-  assert.equal(checkAction(state, { type: 'recruit', cell: 14 }), 'error.no-castle');
+test('roads: start at your building or your road, on a free side, for 1 wood (or gold)', () => {
+  const state = setup(2, { wood: 3 });
   state.buildings[P] = { type: 'castle', owner: 0 };
-  applyAction(state, { type: 'recruit', cell: 21 }, fixedDice([]));
-  assert.equal(state.cells[21].troops[0], 1);
-});
-
-// ---- Combat ----
-
-test('win odds match the trial rule table', () => {
-  const pct = (/** @type {number} */ e) => Math.round(winChance(e) * 100);
-  assert.deepEqual([-4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(pct), [3, 8, 17, 28, 42, 58, 72, 83, 92, 97, 100]);
-});
-
-test('attack inside: winning removes every defender troop, losing costs only the committed troops', () => {
-  const state = setup(2, rich);
-  put(state, 14, [5, 3]);
-  const win = applyAction(state, { type: 'attack', from: 14, target: 14, defender: 1, count: 3 }, fixedDice([4, 2]));
-  assert.equal(win.attackerWins, true);
-  assert.deepEqual(state.cells[14].troops, [5, 0]);
-  assert.equal(state.players[0].resources.iron, 19);
-  assert.equal(state.players[0].resources.grain, 20, 'inside costs only iron');
-
-  put(state, 14, [5, 3]);
-  const tie = applyAction(state, { type: 'attack', from: 14, target: 14, defender: 1, count: 3 }, fixedDice([3, 3]));
-  assert.equal(tie.attackerWins, false, 'the defender wins ties');
-  assert.deepEqual(state.cells[14].troops, [2, 3]);
-});
-
-test('attack outside: only from a held cell, all troops can be committed', () => {
-  const state = setup(2, rich);
-  put(state, 14, [3, 1]);
-  put(state, 15, [0, 2]);
-  assert.equal(checkAction(state, { type: 'attack', from: 14, target: 15, defender: 1, count: 2 }), 'error.not-held');
-  put(state, 14, [3, 0]);
-  assert.equal(checkAction(state, { type: 'attack', from: 14, target: 16, defender: 1, count: 1 }), 'error.no-defender');
-  applyAction(state, { type: 'attack', from: 14, target: 15, defender: 1, count: 3 }, fixedDice([1, 6]));
-  assert.deepEqual(state.cells[14].troops, [0, 0], 'committing everything can empty your cell');
-  assert.equal(state.players[0].resources.grain, 19, 'outside costs iron and grain');
-});
-
-test('attack outside: the buildings of the attacked cell count, each for its owner', () => {
-  const state = setup(2, rich);
-  put(state, 14, [2, 0]);
-  put(state, 15, [0, 2]); // attacked cell 15: corners 17, 18, 25, 24
-  state.buildings[17] = { type: 'castle', owner: 1 }; // corner of 15 on the shared side: +2 for the defender
-  state.buildings[18] = { type: 'castle', owner: 1 }; // corner of 15 away from the attacker: +2 for the defender
-  state.buildings[16] = { type: 'castle', owner: 1 }; // corner of cell 14 only: does not count
-  state.buildings[25] = { type: 'settlement', owner: 0 }; // attacker's building on a corner of 15: +1
-  const r = applyAction(state, { type: 'attack', from: 14, target: 15, defender: 1, count: 2 }, fixedDice([6, 1]));
-  assert.equal(r.defenderBonus, 4);
-  assert.equal(r.attackerBonus, 1);
-});
-
-// ---- Buildings ----
-
-test('settlement: needs two neighboring held cells meeting at the intersection', () => {
-  const state = setup(2, rich);
-  put(state, 14, [1, 0]);
-  put(state, 21, [1, 0]); // diagonal: not neighbors
-  assert.equal(checkAction(state, { type: 'build-settlement', point: P }), 'error.need-two-held');
-  put(state, 15, [1, 0]);
-  applyAction(state, { type: 'build-settlement', point: P }, fixedDice([]));
-  assert.deepEqual(state.buildings[P], { type: 'settlement', owner: 0 });
-  assert.equal(checkAction(state, { type: 'build-settlement', point: P }), 'error.point-taken');
-});
-
-test('promotion: castle needs all 4 cells, port needs both coast cells, corners never', () => {
-  const state = setup(2, rich);
-  state.buildings[P] = { type: 'settlement', owner: 0 };
-  for (const c of AROUND_P.slice(0, 3)) put(state, c, [1, 0]);
-  assert.equal(checkAction(state, { type: 'promote', point: P }), 'error.need-all-held');
-  put(state, 21, [1, 0]);
-  applyAction(state, { type: 'promote', point: P }, fixedDice([]));
-  assert.equal(state.buildings[P].type, 'castle');
-  assert.equal(state.players[0].resources.stone, 20 - COSTS.castle.stone);
-
-  state.buildings[3] = { type: 'settlement', owner: 0 };
-  put(state, 2, [1, 0]);
-  put(state, 3, [1, 0]);
-  applyAction(state, { type: 'promote', point: 3 }, fixedDice([]));
-  assert.equal(state.buildings[3].type, 'port');
-
-  state.buildings[48] = { type: 'settlement', owner: 0 };
-  assert.equal(checkAction(state, { type: 'promote', point: 48 }), 'error.cannot-promote-corner');
-});
-
-test('conquer: a settlement split 2 and 2 cannot be stolen, 3 of 4 can', () => {
-  const state = setup(2, rich);
-  state.buildings[P] = { type: 'settlement', owner: 1 };
-  put(state, 14, [1, 0]);
-  put(state, 15, [1, 0]);
-  put(state, 20, [0, 1]);
-  put(state, 21, [0, 1]);
-  assert.equal(checkAction(state, { type: 'conquer', point: P }), 'error.conquer-condition');
-  put(state, 20, [1, 0]);
-  applyAction(state, { type: 'conquer', point: P }, fixedDice([]));
-  assert.equal(state.buildings[P].owner, 0);
-});
-
-test('conquer: grey buildings can be taken, own buildings cannot', () => {
-  const state = setup(2, rich);
-  state.buildings[P] = { type: 'castle', owner: null };
-  for (const c of AROUND_P) put(state, c, [1, 0]);
-  applyAction(state, { type: 'conquer', point: P }, fixedDice([]));
-  assert.equal(state.buildings[P].owner, 0);
-  assert.equal(checkAction(state, { type: 'conquer', point: P }), 'error.own-building');
-});
-
-// ---- Trade ----
-
-test('port trade: 2 port goods for 1 gold', () => {
-  const state = setup(2, rich);
-  state.buildings[3] = { type: 'port', owner: 0 }; // (0,3): touches cells 2 and 3
-  const goods = portGoods(state, 3);
-  assert.deepEqual([...goods].sort(), [...new Set([state.cells[2].resource, state.cells[3].resource])].sort());
-  const good = goods[0];
-  const other = RESOURCES.find((r) => !goods.includes(r)) ?? '';
-  assert.equal(checkAction(state, { type: 'port-trade', point: 3, pay: { [other]: 2 } }), 'error.bad-goods');
-  assert.equal(checkAction(state, { type: 'port-trade', point: 3, pay: { [good]: 1 } }), 'error.bad-goods');
-  applyAction(state, { type: 'port-trade', point: 3, pay: { [good]: 2 } }, fixedDice([]));
-  assert.equal(state.players[0].resources.gold, 1);
-});
-
-test('missing cards are paid with gold automatically', () => {
-  const state = setup(2, { wood: 0, stone: 1, gold: 1 });
-  put(state, 14, [1, 0]);
-  put(state, 15, [1, 0]);
-  const r = applyAction(state, { type: 'build-settlement', point: P }, fixedDice([]));
+  state.buildings[10] = { type: 'castle', owner: 1 };
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(1, 2) }), 'error.road-not-connected');
+  applyAction(state, { type: 'build-road', edge: road(P, 25) });
+  assert.equal(state.roads[road(P, 25)], 0);
+  assert.equal(state.players[0].resources.wood, 3 - COSTS.road.wood);
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(25, 26) }), null, 'it continues from your road');
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(P, 25) }), 'error.road-taken');
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(10, 11) }), 'error.road-not-connected', 'not from a rival building');
+  state.roads[road(31, 38)] = 1;
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(38, 39) }), 'error.road-not-connected', 'not from a rival road');
+  state.players[0].resources = { wood: 0, stone: 0, grain: 0, iron: 0, gold: 1 };
+  const r = applyAction(state, { type: 'build-road', edge: road(25, 26) });
   assert.equal(r.goldUsed, 1);
-  assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.stone, state.players[0].resources.gold], [0, 0, 0]);
-  assert.equal(checkAction(state, { type: 'move', from: 14, to: 16, count: 1 }), 'error.cannot-pay', 'no gold left');
+  assert.equal(checkAction(state, { type: 'build-road', edge: road(26, 27) }), 'error.cannot-pay');
 });
 
-test('gold exchange: 1 gold for 1 resource of your choice', () => {
-  const state = setup(2, { gold: 1, iron: 0 });
-  applyAction(state, { type: 'exchange-gold', resource: 'iron' }, fixedDice([]));
-  assert.equal(state.players[0].resources.iron, 1);
-  assert.equal(checkAction(state, { type: 'exchange-gold', resource: 'iron' }), 'error.no-gold');
-});
-
-// ---- Towers, elimination and victory ----
-
-test('elimination: no troops, tower full of one enemy -> the enemy takes the tower and wins', () => {
-  const state = setup(2, rich);
-  put(state, BASE_CELLS[0], [0, 4]);
-  put(state, 14, [0, 1]);
-  state.buildings[P] = { type: 'settlement', owner: 0 };
-  state.current = 0;
-  const start = startTurn(state);
-  assert.deepEqual(start.eliminated, [0]);
-  assert.equal(state.cells[BASE_CELLS[0]].towerOwner, 1);
-  assert.equal(state.buildings[P].owner, null, 'buildings of the eliminated player turn grey');
-  assert.equal(state.winner, 1);
-  assert.equal(state.phase, 'over');
-});
-
-test('elimination is skipped while the player can still recruit next to a castle', () => {
-  const state = setup(2, { iron: 1, grain: 1 });
-  put(state, BASE_CELLS[0], [0, 4]);
+test('settlements: on a free intersection touching your road', () => {
+  const state = setup(2, { wood: 5, stone: 5 });
   state.buildings[P] = { type: 'castle', owner: 0 };
-  state.current = 0;
-  assert.deepEqual(startTurn(state).eliminated, []);
+  assert.equal(checkAction(state, { type: 'build-settlement', point: 25 }), 'error.need-road');
+  state.roads[road(P, 25)] = 0;
+  state.roads[road(31, 32)] = 1;
+  assert.equal(checkAction(state, { type: 'build-settlement', point: P }), 'error.point-taken');
+  assert.equal(checkAction(state, { type: 'build-settlement', point: 32 }), 'error.need-road', 'a rival road does not count');
+  applyAction(state, { type: 'build-settlement', point: 25 });
+  assert.deepEqual(state.buildings[25], { type: 'settlement', owner: 0 });
+  assert.deepEqual([state.players[0].resources.wood, state.players[0].resources.stone], [5 - COSTS.settlement.wood, 5 - COSTS.settlement.stone]);
 });
 
-test('elimination with mixed enemies leaves a grey tower; a single player then claims it with any number', () => {
-  const state = setup(3, rich);
-  put(state, BASE_CELLS[0], [0, 2, 2]);
-  put(state, 14, [0, 1, 1]);
-  state.current = 0;
-  const start = startTurn(state);
-  assert.deepEqual(start.eliminated, [0]);
-  assert.equal(start.player, 1);
-  assert.equal(state.cells[BASE_CELLS[0]].towerOwner, null);
-  // Player 1 (active) kills player 2's troops inside the grey tower: the tower becomes theirs.
-  state.phase = 'actions';
-  const r = applyAction(state, { type: 'attack', from: BASE_CELLS[0], target: BASE_CELLS[0], defender: 2, count: 2 }, fixedDice([3, 1]));
-  assert.deepEqual(r.claimed, [{ cell: BASE_CELLS[0], player: 1 }]);
+test('moving a settlement: one step along any road to a free intersection; the road becomes yours', () => {
+  const state = setup(2, { grain: 10 });
+  state.buildings[P] = { type: 'settlement', owner: 0 };
+  assert.equal(checkAction(state, { type: 'move-settlement', from: P, to: 25 }), 'error.need-road-there');
+  state.roads[road(P, 25)] = 1; // a rival road
+  state.buildings[31] = { type: 'castle', owner: 1 };
+  state.roads[road(P, 31)] = 0;
+  assert.equal(checkAction(state, { type: 'move-settlement', from: P, to: 31 }), 'error.point-taken');
+  assert.equal(checkAction(state, { type: 'move-settlement', from: P, to: 26 }), 'error.not-neighbor');
+  const r = applyAction(state, { type: 'move-settlement', from: P, to: 25 });
+  assert.equal(r.previousRoadOwner, 1);
+  assert.equal(state.roads[road(P, 25)], 0);
+  assert.equal(state.buildings[P], undefined);
+  assert.deepEqual(state.buildings[25], { type: 'settlement', owner: 0 });
+  assert.equal(state.players[0].resources.grain, 10 - COSTS.moveSettlement.grain);
+  state.buildings[31] = { type: 'castle', owner: 0 };
+  state.roads[road(25, 32)] = 0;
+  assert.equal(checkAction(state, { type: 'move-settlement', from: 31, to: 32 }), 'error.not-your-settlement', 'only settlements move');
 });
 
-test('end turn passes to the next player still in the game', () => {
-  const state = setup(3, rich);
-  state.players[1].eliminated = true;
-  put(state, BASE_CELLS[1], [0, 0, 0]);
-  put(state, BASE_CELLS[2], [0, 0, 2]);
-  state.current = 0;
+test('promote: a settlement becomes a castle inside, a port on the coast', () => {
+  const state = setup(2, { wood: 10, stone: 10 });
+  state.buildings[P] = { type: 'settlement', owner: 0 };
+  state.buildings[3] = { type: 'settlement', owner: 0 };
+  state.buildings[4] = { type: 'settlement', owner: 1 };
+  applyAction(state, { type: 'promote', point: P });
+  applyAction(state, { type: 'promote', point: 3 });
+  assert.equal(state.buildings[P].type, 'castle');
+  assert.equal(state.buildings[3].type, 'port');
+  assert.equal(state.players[0].resources.stone, 10 - COSTS.castle.stone - COSTS.port.stone);
+  assert.equal(checkAction(state, { type: 'promote', point: 4 }), 'error.not-your-settlement');
+  assert.equal(checkAction(state, { type: 'promote', point: P }), 'error.not-your-settlement', 'a castle is not promoted again');
+});
+
+test('ports trade 2 of their goods for 1 gold; gold buys any card', () => {
+  const state = setup(2, { wood: 2, stone: 2 });
+  state.cells[2].resource = 'wood';
+  state.cells[3].resource = 'stone';
+  state.buildings[3] = { type: 'port', owner: 0 };
+  assert.deepEqual(portGoods(state, 3).sort(), ['stone', 'wood']);
+  assert.equal(checkAction(state, { type: 'port-trade', point: 3, pay: { grain: 2 } }), 'error.bad-goods');
+  applyAction(state, { type: 'port-trade', point: 3, pay: { wood: 1, stone: 1 } });
+  assert.equal(state.players[0].resources[GOLD], 1);
+  applyAction(state, { type: 'exchange-gold', resource: 'iron' });
+  assert.deepEqual([state.players[0].resources[GOLD], state.players[0].resources.iron], [0, 1]);
+});
+
+test('turns: the next player rolls; the turn counter grows', () => {
+  const state = setup(3);
   endTurn(state);
-  assert.equal(state.current, 2);
-  assert.equal(state.turn, 2);
+  assert.deepEqual([state.current, state.phase, state.turn, state.dice], [1, 'roll', 2, null]);
+  assert.equal(checkAction(state, { type: 'build-road', edge: 0 }), 'error.roll-first');
+  state.phase = 'actions';
+  endTurn(state);
+  state.phase = 'actions';
+  endTurn(state);
+  assert.equal(state.current, 0);
+  assert.equal(pointKind(P), 'inner');
 });

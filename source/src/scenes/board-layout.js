@@ -1,7 +1,7 @@
-// Where things are drawn on the canvas (pure, game units): cells, intersections, troop slots, hit tests.
+// Where things are drawn on the canvas (pure, game units): cells, intersections, edges, hit tests.
 
 import { BOARD_VIEW } from '../config.js';
-import { SIZE, cellCol, cellRow, pointCol, pointRow } from '../systems/board.js';
+import { EDGE_COUNT, SIZE, cellCol, cellRow, edgeEnds, pointCol, pointRow } from '../systems/board.js';
 
 const { margin, cell: CELL } = BOARD_VIEW;
 
@@ -12,20 +12,14 @@ export const cellCenter = (/** @type {number} */ id) => ({ x: margin + (cellCol(
 
 export const pointPos = (/** @type {number} */ id) => ({ x: margin + pointCol(id) * CELL, y: margin + pointRow(id) * CELL });
 
-/**
- * Position of troop slot k of a cell with `slots` places: a circle around the center, starting at the top.
- * @param {number} id
- * @param {number} k
- * @param {number} slots
- */
-export function troopSlot(id, k, slots) {
-  const c = cellCenter(id);
-  const angle = -Math.PI / 2 + (k * 2 * Math.PI) / slots;
-  return { x: c.x + Math.cos(angle) * BOARD_VIEW.troopRing, y: c.y + Math.sin(angle) * BOARD_VIEW.troopRing };
+/** Middle of an edge (a cell side). */
+export function edgeMid(/** @type {number} */ id) {
+  const [a, b] = edgeEnds(id).map(pointPos);
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
 /**
- * Cell under a position (or null outside the board), the nearest intersection and its distance.
+ * Cell under a position (or null outside the board), the nearest intersection and edge middle, and their distances.
  * @param {number} x
  * @param {number} y
  */
@@ -37,5 +31,15 @@ export function hitTest(x, y) {
   const pr = Math.min(SIZE, Math.max(0, Math.round((y - margin) / CELL)));
   const point = pr * (SIZE + 1) + pc;
   const p = pointPos(point);
-  return { cell, point, pointDistance: Math.hypot(p.x - x, p.y - y) };
+  let edge = 0;
+  let edgeDistance = Infinity;
+  for (let e = 0; e < EDGE_COUNT; e++) {
+    const m = edgeMid(e);
+    const d = Math.hypot(m.x - x, m.y - y);
+    if (d < edgeDistance) {
+      edge = e;
+      edgeDistance = d;
+    }
+  }
+  return { cell, point, pointDistance: Math.hypot(p.x - x, p.y - y), edge, edgeDistance };
 }

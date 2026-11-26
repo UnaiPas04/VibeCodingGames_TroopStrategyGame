@@ -1,49 +1,42 @@
-// Player actions (pure): validation and effects of every action bought during the actions phase.
+// Player actions (pure): validation and effects of every action.
 // checkAction() returns null or an i18n error key; applyAction() applies a valid action and returns
-// a result for the log. Missing resources are paid with gold, 1:1, automatically (except port trades). Trial rules T2, T4-T8; costs in config.js (COSTS).
+// a result for the log. Missing resources are paid with gold, 1:1, automatically (except trades).
+// Rules: docs/trial-rules.md; costs in config.js (COSTS).
 
-import { CONQUER_SETTLEMENT_INNER, COSTS, GOLD, MOVE, PORT_TRADE, RESOURCES } from '../config.js';
-import { areNeighbors, cellCorners, cellDistance, isCell, isPoint, neighborPairsAt, pointCells, pointKind, pointNeighbors } from './board.js';
-import { buildingBonus, resolveFight } from './combat.js';
-import { buildingAt, canPay, canPayWithGold, freeSlots, heldCellsAround, holds, pay, payWithGold, touchesOwnCastle, troopsOf } from './state.js';
-import { claimGreyTowers } from './towers.js';
+import { COSTS, GOLD, PORT_TRADE, RESOURCES } from '../config.js';
+import { edgeBetween, edgeEnds, isEdge, isPoint, pointCells, pointKind, pointNeighbors } from './board.js';
+import { buildingAt, canPay, canPayWithGold, pay, payWithGold, roadAt, touchesOwnRoad } from './state.js';
 
 /**
- * @typedef {{type: 'move', from: number, to: number, count: number}
- *   | {type: 'recruit', cell: number}
- *   | {type: 'attack', from: number, target: number, defender: number, count: number}
+ * @typedef {{type: 'place-start', point: number}
+ *   | {type: 'build-road', edge: number}
  *   | {type: 'build-settlement', point: number}
  *   | {type: 'move-settlement', from: number, to: number}
  *   | {type: 'promote', point: number}
- *   | {type: 'conquer', point: number}
  *   | {type: 'port-trade', point: number, pay: Record<string, number>}
  *   | {type: 'exchange-gold', resource: string}} Action
  */
 
 /** @typedef {import('./state.js').GameState} GameState */
 
+/** What a big building at this intersection is: a port on the coast (and corners), a castle inside. */
+export const bigBuildingAt = (/** @type {number} */ point) => /** @type {'castle' | 'port'} */ (pointKind(point) === 'inner' ? 'castle' : 'port');
+
 /**
- * Cost of an action in its current context (attack inside/outside, promotion to castle/port).
- * @param {GameState} state
+ * Cost of an action (the start building is free; trades are paid with cards, not here).
  * @param {Action} action
  * @returns {Record<string, number>}
  */
-export function costOf(state, action) {
+export function costOf(action) {
   switch (action.type) {
-    case 'move':
-      return moveCost(action.count, isCell(action.from) && isCell(action.to) ? cellDistance(action.from, action.to) : 0);
-    case 'recruit':
-      return COSTS.recruit;
-    case 'attack':
-      return action.from === action.target ? COSTS.attackInside : COSTS.attackOutside;
+    case 'build-road':
+      return COSTS.road;
     case 'build-settlement':
       return COSTS.settlement;
     case 'move-settlement':
       return COSTS.moveSettlement;
     case 'promote':
-      return isPoint(action.point) && pointKind(action.point) === 'coast' ? COSTS.port : COSTS.castle;
-    case 'conquer':
-      return COSTS.conquer;
+      return isPoint(action.point) ? COSTS[bigBuildingAt(action.point)] : {};
     default:
       return {};
   }
@@ -51,7 +44,7 @@ export function costOf(state, action) {
 
 /** Resources a port can trade: those of the normal cells it touches. */
 export const portGoods = (/** @type {GameState} */ state, /** @type {number} */ point) =>
-  /** @type {string[]} */ ([...new Set(pointCells(point).map((c) => state.cells[c].resource))].filter((r) => r !== null && RESOURCES.includes(/** @type {any} */ (r))));
+  [...new Set(pointCells(point).map((c) => state.cells[c].resource))].filter((r) => RESOURCES.includes(/** @type {any} */ (r)));
 
 /**
  * Every way to pay a port trade with the port's goods (e.g. 2 wood, 2 stone, 1 wood + 1 stone).
@@ -75,39 +68,10 @@ export function portTradeOptions(state, point) {
   return options.map((o) => Object.fromEntries(Object.entries(o).filter(([, n]) => n > 0)));
 }
 
-/** True if the player meets the conquest condition of the building at this intersection (T7). */
-export function meetsConquerCondition(/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ point) {
-  const building = buildingAt(state, point);
-  if (!building) return false;
-  const held = heldCellsAround(state, player, point);
-  const touching = pointCells(point).length;
-  if (building.type === 'settlement' && touching === 4) return held >= CONQUER_SETTLEMENT_INNER;
-  return held === touching;
+/** True if a road on the edge would connect: one of its ends has the player's building or road. */
+function connectsRoad(/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ edge) {
+  return edgeEnds(edge).some((p) => buildingAt(state, p)?.owner === player || touchesOwnRoad(state, player, p));
 }
-
-/**
- * Grain to move some troops some cells: troops x cells x MOVE.grainPerTroopCell, rounded up.
- * @param {number} count
- * @param {number} cells
- * @returns {Record<string, number>}
- */
-export function moveCost(count, cells) {
-  return { grain: Math.ceil(count * cells * MOVE.grainPerTroopCell) };
-}
-
-/**
- * Troops a move of `wanted` troops actually carries: no more than the source has or the destination fits.
- * @param {GameState} state
- * @param {number} wanted
- * @param {number} from
- * @param {number} to
- */
-export function fittingCount(state, wanted, from, to) {
-  return Math.max(0, Math.min(wanted, troopsOf(state, from, state.current), freeSlots(state, to)));
-}
-
-/** @param {unknown} n */
-const isCount = (n) => Number.isInteger(n) && /** @type {number} */ (n) >= 1;
 
 /**
  * Validate an action for the active player.
@@ -117,50 +81,33 @@ const isCount = (n) => Number.isInteger(n) && /** @type {number} */ (n) >= 1;
  */
 export function checkAction(state, action) {
   if (state.phase === 'over') return 'error.game-over';
+  if (action.type === 'place-start') {
+    if (state.phase !== 'setup' || !isPoint(action.point)) return 'error.invalid-target';
+    return buildingAt(state, action.point) ? 'error.point-taken' : null;
+  }
+  if (state.phase === 'setup') return 'error.place-start-first';
   if (state.phase !== 'actions') return 'error.roll-first';
   const me = state.current;
   const purse = state.players[me].resources;
-  const affordable = () => (canPayWithGold(purse, costOf(state, action)) ? null : 'error.cannot-pay');
+  const affordable = () => (canPayWithGold(purse, costOf(action)) ? null : 'error.cannot-pay');
 
   switch (action.type) {
-    case 'move': {
-      if (!isCell(action.from) || !isCell(action.to) || action.from === action.to) return 'error.invalid-target';
-      if (cellDistance(action.from, action.to) > MOVE.maxCells) return 'error.too-far';
-      if (!isCount(action.count)) return 'error.bad-count';
-      if (troopsOf(state, action.from, me) < action.count) return 'error.not-enough-troops';
-      if (freeSlots(state, action.to) < action.count) return 'error.cell-full';
+    case 'build-road':
+      if (!isEdge(action.edge)) return 'error.invalid-target';
+      if (roadAt(state, action.edge) !== undefined) return 'error.road-taken';
+      if (!connectsRoad(state, me, action.edge)) return 'error.road-not-connected';
       return affordable();
-    }
-    case 'recruit':
-      if (!isCell(action.cell)) return 'error.invalid-target';
-      if (!touchesOwnCastle(state, me, action.cell)) return 'error.no-castle';
-      if (freeSlots(state, action.cell) < 1) return 'error.cell-full';
-      return affordable();
-    case 'attack': {
-      const { from, target, defender, count } = action;
-      if (!isCell(from) || !isCell(target)) return 'error.invalid-target';
-      if (!Number.isInteger(defender) || defender === me || !state.players[defender] || troopsOf(state, target, defender) < 1) {
-        return 'error.no-defender';
-      }
-      if (from !== target) {
-        if (!areNeighbors(from, target)) return 'error.not-neighbor';
-        if (!holds(state, me, from)) return 'error.not-held';
-      }
-      if (!isCount(count) || count > troopsOf(state, from, me)) return 'error.not-enough-troops';
-      return affordable();
-    }
-    case 'build-settlement': {
+    case 'build-settlement':
       if (!isPoint(action.point)) return 'error.invalid-target';
       if (buildingAt(state, action.point)) return 'error.point-taken';
-      const ok = neighborPairsAt(action.point).some(([a, b]) => holds(state, me, a) && holds(state, me, b));
-      if (!ok) return 'error.need-two-held';
+      if (!touchesOwnRoad(state, me, action.point)) return 'error.need-road';
       return affordable();
-    }
     case 'move-settlement': {
       if (!isPoint(action.from) || !isPoint(action.to)) return 'error.invalid-target';
       const b = buildingAt(state, action.from);
       if (!b || b.type !== 'settlement' || b.owner !== me) return 'error.not-your-settlement';
       if (!pointNeighbors(action.from).includes(action.to)) return 'error.not-neighbor';
+      if (roadAt(state, /** @type {number} */ (edgeBetween(action.from, action.to))) === undefined) return 'error.need-road-there';
       if (buildingAt(state, action.to)) return 'error.point-taken';
       return affordable();
     }
@@ -168,16 +115,6 @@ export function checkAction(state, action) {
       if (!isPoint(action.point)) return 'error.invalid-target';
       const b = buildingAt(state, action.point);
       if (!b || b.type !== 'settlement' || b.owner !== me) return 'error.not-your-settlement';
-      if (pointKind(action.point) === 'corner') return 'error.cannot-promote-corner';
-      if (heldCellsAround(state, me, action.point) < pointCells(action.point).length) return 'error.need-all-held';
-      return affordable();
-    }
-    case 'conquer': {
-      if (!isPoint(action.point)) return 'error.invalid-target';
-      const b = buildingAt(state, action.point);
-      if (!b) return 'error.no-building';
-      if (b.owner === me) return 'error.own-building';
-      if (!meetsConquerCondition(state, me, action.point)) return 'error.conquer-condition';
       return affordable();
     }
     case 'port-trade': {
@@ -201,54 +138,49 @@ export function checkAction(state, action) {
 
 /**
  * Apply a valid action for the active player. Throws if the action is not valid.
+ * The setup placement does not pass the turn: placeStart in turn.js does.
  * @param {GameState} state
  * @param {Action} action
- * @param {{int: (min: number, max: number) => number}} rng Used by attacks.
- * @returns {Record<string, any>} What happened, for the log and sounds. Always has `type`, `goldUsed` and `claimed` (grey towers taken).
+ * @returns {Record<string, any>} What happened, for the log and sounds. Always has `type`, `player` and `goldUsed`.
  */
-export function applyAction(state, action, rng) {
+export function applyAction(state, action) {
   const error = checkAction(state, action);
   if (error) throw new Error(`Invalid action ${JSON.stringify(action)}: ${error}`);
   const me = state.current;
   const purse = state.players[me].resources;
-  const goldUsed = action.type === 'port-trade' || action.type === 'exchange-gold' ? 0 : payWithGold(purse, costOf(state, action));
+  const trade = action.type === 'port-trade' || action.type === 'exchange-gold';
+  const goldUsed = trade ? 0 : payWithGold(purse, costOf(action));
 
   /** @type {Record<string, any>} */
-  let result;
+  let result = {};
   switch (action.type) {
-    case 'move': {
-      const { count } = action;
-      state.cells[action.from].troops[me] -= count;
-      state.cells[action.to].troops[me] += count;
-      result = { from: action.from, to: action.to, count, cells: cellDistance(action.from, action.to) };
+    case 'place-start': {
+      const type = bigBuildingAt(action.point);
+      state.buildings[action.point] = { type, owner: me };
+      result = { point: action.point, building: type };
       break;
     }
-    case 'recruit':
-      state.cells[action.cell].troops[me] += 1;
-      result = { cell: action.cell };
-      break;
-    case 'attack':
-      result = attack(state, action, rng);
+    case 'build-road':
+      state.roads[action.edge] = me;
+      result = { edge: action.edge };
       break;
     case 'build-settlement':
       state.buildings[action.point] = { type: 'settlement', owner: me };
       result = { point: action.point };
       break;
-    case 'move-settlement':
+    case 'move-settlement': {
+      const edge = /** @type {number} */ (edgeBetween(action.from, action.to));
+      const previousRoadOwner = state.roads[edge];
       state.buildings[action.to] = state.buildings[action.from];
       delete state.buildings[action.from];
-      result = { from: action.from, to: action.to };
-      break;
-    case 'promote': {
-      const to = pointKind(action.point) === 'coast' ? 'port' : 'castle';
-      state.buildings[action.point].type = to;
-      result = { point: action.point, building: to };
+      state.roads[edge] = me; // the road it travels along becomes the mover's
+      result = { from: action.from, to: action.to, edge, previousRoadOwner };
       break;
     }
-    case 'conquer': {
-      const b = state.buildings[action.point];
-      result = { point: action.point, building: b.type, previousOwner: b.owner };
-      b.owner = me;
+    case 'promote': {
+      const to = bigBuildingAt(action.point);
+      state.buildings[action.point].type = to;
+      result = { point: action.point, building: to };
       break;
     }
     case 'port-trade':
@@ -262,48 +194,5 @@ export function applyAction(state, action, rng) {
       result = { resource: action.resource };
       break;
   }
-  return { type: action.type, player: me, goldUsed, ...result, claimed: claimGreyTowers(state) };
-}
-
-/**
- * Building bonuses of both sides: their own buildings on the 4 corners of the attacked cell,
- * whether the attack comes from inside or from a neighboring cell.
- * @param {GameState} state
- * @param {number} target
- * @param {number} defender
- */
-export function attackBonuses(state, target, defender) {
-  const points = cellCorners(target);
-  return { attackerBonus: buildingBonus(state.buildings, state.current, points), defenderBonus: buildingBonus(state.buildings, defender, points) };
-}
-
-/**
- * @param {GameState} state
- * @param {Extract<Action, {type: 'attack'}>} action
- * @param {{int: (min: number, max: number) => number}} rng
- */
-function attack(state, { from, target, defender, count }, rng) {
-  const me = state.current;
-  const inside = from === target;
-  const defenderTroops = troopsOf(state, target, defender);
-  const fight = {
-    attackerTroops: count,
-    defenderTroops,
-    ...attackBonuses(state, target, defender),
-    attackerDie: rng.int(1, 6),
-    defenderDie: rng.int(1, 6)
-  };
-  const outcome = resolveFight(fight);
-  if (outcome.attackerWins) state.cells[target].troops[defender] = 0;
-  else state.cells[from].troops[me] -= count;
-  return {
-    from,
-    target,
-    defender,
-    inside,
-    ...fight,
-    ...outcome,
-    attackerLost: outcome.attackerWins ? 0 : count,
-    defenderLost: outcome.attackerWins ? defenderTroops : 0
-  };
+  return { type: action.type, player: me, goldUsed, ...result };
 }

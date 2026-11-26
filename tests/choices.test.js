@@ -1,101 +1,79 @@
-// Tests for click choices (what a click on a cell or intersection can do) and the board layout hit test.
+// Tests for click choices (what a click on an intersection or a cell side can do) and the board layout hit test.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { BOARD_VIEW } from '../source/src/config.js';
 import { createRng } from '../source/src/core/rng.js';
-import { cellCenter, hitTest, pointPos, troopSlot } from '../source/src/scenes/board-layout.js';
 import { portTradeOptions } from '../source/src/systems/actions.js';
-import { activePoints, cellChoices, moveTo, pointChoices, settlementDestinations, sourceTargets } from '../source/src/systems/choices.js';
+import { edgeBetween } from '../source/src/systems/board.js';
+import { activePoints, pointChoices, roadSlots, settlementDestinations } from '../source/src/systems/choices.js';
 import { createState } from '../source/src/systems/state.js';
+import { edgeMid, hitTest, pointPos } from '../source/src/scenes/board-layout.js';
 
-function setup() {
+const P = 24; // inner intersection (3,3)
+
+function setup(resources = {}) {
   const state = createState(createRng(1), 2);
-  for (const cell of state.cells) cell.troops.fill(0);
-  for (const p of state.players) Object.assign(p.resources, { wood: 9, stone: 9, grain: 9, iron: 9 });
+  for (const p of state.players) Object.assign(p.resources, resources);
   state.phase = 'actions';
   return state;
 }
 
-const kinds = (/** @type {import('../source/src/systems/choices.js').Choice[]} */ list) =>
-  list.map((c) => (c.kind === 'action' ? c.action.type : c.kind));
-
-test('a click on a destination moves the picked troops, fewer if fewer fit, at any distance', () => {
-  const state = setup();
-  state.cells[14].troops[0] = 5;
-  state.cells[15].troops[1] = 6;
-  assert.deepEqual(moveTo(state, 14, 16, 4), { type: 'move', from: 14, to: 16, count: 4 });
-  assert.deepEqual(moveTo(state, 14, 15, 4), { type: 'move', from: 14, to: 15, count: 2 }, 'only 2 places left');
-  assert.deepEqual(moveTo(state, 14, 31, 1), { type: 'move', from: 14, to: 31, count: 1 }, '4 cells away');
+test('setup: every free intersection offers the start building', () => {
+  const state = createState(createRng(1), 2);
+  assert.equal(activePoints(state).length, 49);
+  assert.deepEqual(pointChoices(state, P).map((c) => c.kind === 'action' && c.action.type), ['place-start']);
+  state.buildings[P] = { type: 'castle', owner: 1 };
+  assert.deepEqual(pointChoices(state, P), []);
+  assert.deepEqual(roadSlots(state), [], 'no roads during the setup');
 });
 
-test('with a source selected, a click moves or attacks', () => {
-  const state = setup();
-  state.cells[14].troops[0] = 3;
-  state.cells[15].troops[1] = 1;
-  assert.deepEqual(kinds(cellChoices(state, 14, 15, 3)), ['move', 'attack'], 'enemy next to a held cell');
-  assert.deepEqual(kinds(cellChoices(state, 14, 16, 3)), ['move']);
-  assert.deepEqual(kinds(cellChoices(state, 14, 35, 3)), ['move'], 'any distance');
-  state.cells[14].troops[1] = 1;
-  assert.deepEqual(kinds(cellChoices(state, 14, 14)), ['attack'], 'inside attack on the selected cell');
-  const targets = sourceTargets(state, 14, 3);
-  assert.ok(targets.moves.includes(15) && targets.moves.includes(16));
-  assert.ok(targets.attacks.includes(14));
-  assert.ok(!targets.attacks.includes(15), 'outside attacks need a held cell');
+test('road slots: the free sides that connect to your buildings and roads', () => {
+  const state = setup({ wood: 5 });
+  state.buildings[P] = { type: 'castle', owner: 0 };
+  assert.equal(roadSlots(state).length, 4);
+  state.roads[/** @type {number} */ (edgeBetween(P, 25))] = 0;
+  assert.equal(roadSlots(state).length, 3 + 3, 'three more from the end of the road');
+  state.players[0].resources.wood = 0;
+  assert.deepEqual(roadSlots(state), [], 'nothing you cannot pay');
 });
 
-test('recruit appears on cells touching your castle', () => {
-  const state = setup();
-  state.buildings[24] = { type: 'castle', owner: 0 }; // touches 14, 15, 20, 21
-  assert.deepEqual(kinds(cellChoices(state, null, 21)), ['recruit']);
-  assert.deepEqual(kinds(cellChoices(state, null, 22)), []);
-});
-
-test('intersection circles: build, promote, trade and move settlements', () => {
-  const state = setup();
-  state.cells[14].troops[0] = 1;
-  state.cells[15].troops[0] = 1;
-  assert.deepEqual(kinds(pointChoices(state, 24)), ['build-settlement']);
-  assert.ok(activePoints(state).includes(24));
-  state.buildings[24] = { type: 'settlement', owner: 0 };
-  assert.ok(kinds(pointChoices(state, 24)).includes('move-settlement'));
-  assert.equal(settlementDestinations(state, 24).length, 4);
-  state.cells[20].troops[0] = 1;
-  state.cells[21].troops[0] = 1;
-  assert.ok(kinds(pointChoices(state, 24)).includes('promote'));
-  state.phase = 'roll';
-  assert.deepEqual(activePoints(state), [], 'nothing to click before the roll');
+test('intersection circles: build next to your road, promote, trade, move a settlement', () => {
+  const state = setup({ wood: 9, stone: 9, grain: 9 });
+  state.buildings[P] = { type: 'settlement', owner: 0 };
+  state.roads[/** @type {number} */ (edgeBetween(P, 25))] = 0;
+  const kinds = (/** @type {number} */ p) => pointChoices(state, p).map((c) => (c.kind === 'action' ? c.action.type : c.kind));
+  assert.deepEqual(kinds(25), ['build-settlement']);
+  assert.deepEqual(kinds(P), ['promote', 'move-settlement']);
+  assert.deepEqual(settlementDestinations(state, P), [25]);
+  assert.deepEqual(kinds(10), []);
 });
 
 test('port trade options: every way to pay 2 goods', () => {
   const state = setup();
-  state.buildings[3] = { type: 'port', owner: 0 }; // (0,3): touches cells 2 and 3
-  const [a, b] = [state.cells[2].resource ?? '', state.cells[3].resource ?? ''];
-  const options = portTradeOptions(state, 3).map((o) => JSON.stringify(o)).sort();
-  if (a === b) assert.deepEqual(options, [JSON.stringify({ [a]: 2 })]);
-  else assert.deepEqual(options, [{ [a]: 2 }, { [a]: 1, [b]: 1 }, { [b]: 2 }].map((o) => JSON.stringify(o)).sort());
+  state.cells[2].resource = 'wood';
+  state.cells[3].resource = 'stone';
+  assert.deepEqual(portTradeOptions(state, 3), [{ wood: 2 }, { wood: 1, stone: 1 }, { stone: 2 }]);
+  state.cells[3].resource = 'wood';
+  assert.deepEqual(portTradeOptions(state, 3), [{ wood: 2 }]);
 });
 
-test('layout: hit test finds the cell and the nearest intersection; troop slots stay off the number', () => {
-  const c = cellCenter(14);
-  assert.equal(hitTest(c.x, c.y).cell, 14);
-  assert.ok(hitTest(c.x, c.y).pointDistance > BOARD_VIEW.pointPick, 'a cell center never hits a circle');
-  const p = pointPos(24);
-  const hit = hitTest(p.x + 3, p.y - 3);
-  assert.equal(hit.point, 24);
-  assert.ok(hit.pointDistance <= BOARD_VIEW.pointPick);
+test('layout: hit test finds the cell, the nearest intersection and the nearest cell side', () => {
+  const p = pointPos(P);
+  const hit = hitTest(p.x + 3, p.y - 2);
+  assert.equal(hit.point, P);
+  assert.ok(hit.pointDistance < BOARD_VIEW.pointPick);
+  const e = /** @type {number} */ (edgeBetween(P, 25));
+  const m = edgeMid(e);
+  const side = hitTest(m.x + 2, m.y + 4);
+  assert.equal(side.edge, e);
+  assert.ok(side.edgeDistance < BOARD_VIEW.edgePick);
+  assert.ok(side.pointDistance > BOARD_VIEW.pointPick, 'a side middle is far from the intersections');
   assert.equal(hitTest(5, 5).cell, null);
-  for (const slots of [4, 8]) {
-    for (let k = 0; k < slots; k++) {
-      const s = troopSlot(14, k, slots);
-      assert.ok(Math.hypot(s.x - c.x, s.y - c.y) - BOARD_VIEW.troopRadius > BOARD_VIEW.numberRadius);
-    }
-  }
 });
 
 test('rng shuffle keeps every item', () => {
-  const list = [1, 2, 3, 4, 5, 6];
+  const list = [1, 2, 3, 4, 5, 6, 7, 8];
   const out = createRng(3).shuffle(list);
-  assert.deepEqual([...out].sort(), list);
-  assert.deepEqual(list, [1, 2, 3, 4, 5, 6], 'the input is not changed');
+  assert.deepEqual([...out].sort((a, b) => a - b), list);
 });

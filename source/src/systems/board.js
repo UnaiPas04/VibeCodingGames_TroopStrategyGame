@@ -1,56 +1,38 @@
 // Board geometry and generation (pure, no DOM).
 // Cells: id = row * SIZE + col. Intersections (cell corner points): id = row * (SIZE + 1) + col,
-// with row and col in 0..SIZE. See docs/trial-rules.md (T0).
+// with row and col in 0..SIZE. Edges (cell sides, where roads go) join two neighboring intersections:
+// first the horizontal ones (id = row * SIZE + col), then the vertical ones. See docs/trial-rules.md.
 
-import { BOARD, GOLD, PLAYERS, RESOURCES } from '../config.js';
+import { BOARD, GOLD, RESOURCES } from '../config.js';
 
 export const SIZE = BOARD.size;
 const POINTS = SIZE + 1;
 export const CELL_COUNT = SIZE * SIZE;
 export const POINT_COUNT = POINTS * POINTS;
+const HORIZONTAL = POINTS * SIZE;
+export const EDGE_COUNT = 2 * HORIZONTAL;
 
-/** Base cells (one per quadrant, see BOARD.bases) in order: top-left, top-right, bottom-right, bottom-left. */
-export const BASE_CELLS = BOARD.bases.map(([row, col]) => row * SIZE + col);
+/** Gold cells (one per quadrant, see BOARD.goldCells) in quadrant order: top-left, top-right, bottom-right, bottom-left. */
+export const GOLD_CELLS = BOARD.goldCells.map(([row, col]) => row * SIZE + col);
 
 /**
  * @typedef {object} Cell
  * @property {number} id
  * @property {number} row
  * @property {number} col
- * @property {'normal' | 'tower' | 'empty'} kind normal: resource + number; tower: gold, no number; empty: unused base.
- * @property {string | null} resource One of RESOURCES, GOLD for tower cells, null for empty bases.
- * @property {number | null} number Dice number (normal cells only).
- * @property {number | null} towerOwner Player index, or null for a grey tower (tower cells only).
- * @property {number[]} troops Troops per player index.
+ * @property {'normal' | 'gold'} kind normal: one of RESOURCES; gold: produces gold.
+ * @property {string} resource One of RESOURCES, or GOLD.
+ * @property {number} number Dice number.
  */
 
 export const cellRow = (/** @type {number} */ id) => Math.floor(id / SIZE);
 export const cellCol = (/** @type {number} */ id) => id % SIZE;
 export const isCell = (/** @type {number} */ id) => Number.isInteger(id) && id >= 0 && id < CELL_COUNT;
 export const isPoint = (/** @type {number} */ id) => Number.isInteger(id) && id >= 0 && id < POINT_COUNT;
+export const isEdge = (/** @type {number} */ id) => Number.isInteger(id) && id >= 0 && id < EDGE_COUNT;
 export const pointRow = (/** @type {number} */ id) => Math.floor(id / POINTS);
 export const pointCol = (/** @type {number} */ id) => id % POINTS;
 const pointId = (/** @type {number} */ row, /** @type {number} */ col) => row * POINTS + col;
-
-/** Orthogonal neighbor cells. */
-export function cellNeighbors(/** @type {number} */ id) {
-  const r = cellRow(id);
-  const c = cellCol(id);
-  /** @type {number[]} */
-  const out = [];
-  if (r > 0) out.push(id - SIZE);
-  if (c < SIZE - 1) out.push(id + 1);
-  if (r < SIZE - 1) out.push(id + SIZE);
-  if (c > 0) out.push(id - 1);
-  return out;
-}
-
-/** Two cells that share a side. */
-export const areNeighbors = (/** @type {number} */ a, /** @type {number} */ b) => cellNeighbors(a).includes(b);
-
-/** Orthogonal steps between two cells. */
-export const cellDistance = (/** @type {number} */ a, /** @type {number} */ b) =>
-  Math.abs(cellRow(a) - cellRow(b)) + Math.abs(cellCol(a) - cellCol(b));
 
 /** The 4 intersections at the corners of a cell. */
 export function cellCorners(/** @type {number} */ id) {
@@ -97,25 +79,30 @@ export function pointNeighbors(/** @type {number} */ id) {
   return out;
 }
 
-/** The 2 intersections at the ends of the side shared by two neighboring cells. */
-export function sharedSideEnds(/** @type {number} */ a, /** @type {number} */ b) {
-  if (!areNeighbors(a, b)) throw new Error(`Cells ${a} and ${b} are not neighbors`);
-  const corners = cellCorners(b);
-  return cellCorners(a).filter((p) => corners.includes(p));
-}
-
-/** Pairs of neighboring cells whose shared side ends at this intersection. */
-export function neighborPairsAt(/** @type {number} */ point) {
-  const cells = pointCells(point);
-  /** @type {[number, number][]} */
-  const pairs = [];
-  for (let i = 0; i < cells.length; i++) {
-    for (let j = i + 1; j < cells.length; j++) if (areNeighbors(cells[i], cells[j])) pairs.push([cells[i], cells[j]]);
+/** The 2 intersections at the ends of an edge. @returns {[number, number]} */
+export function edgeEnds(/** @type {number} */ id) {
+  if (!isEdge(id)) throw new Error(`Invalid edge: ${id}`);
+  if (id < HORIZONTAL) {
+    const a = pointId(Math.floor(id / SIZE), id % SIZE);
+    return [a, a + 1];
   }
-  return pairs;
+  const v = id - HORIZONTAL;
+  const a = pointId(Math.floor(v / POINTS), v % POINTS);
+  return [a, a + POINTS];
 }
 
-/** Quadrant index of a cell: 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left (same order as BASE_CELLS). */
+/** The edge joining two neighboring intersections, or null if they are not neighbors. */
+export function edgeBetween(/** @type {number} */ a, /** @type {number} */ b) {
+  if (!isPoint(a) || !isPoint(b) || !pointNeighbors(a).includes(b)) return null;
+  const [p, q] = a < b ? [a, b] : [b, a];
+  if (q === p + 1) return pointRow(p) * SIZE + pointCol(p);
+  return HORIZONTAL + p;
+}
+
+/** Edges that start at an intersection: 4 (inner), 3 (coast) or 2 (corner). */
+export const pointEdges = (/** @type {number} */ id) => pointNeighbors(id).map((n) => /** @type {number} */ (edgeBetween(id, n)));
+
+/** Quadrant index of a cell: 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left (same order as GOLD_CELLS). */
 export function quadrantOf(/** @type {number} */ id) {
   const half = SIZE / 2;
   const top = cellRow(id) < half;
@@ -124,63 +111,36 @@ export function quadrantOf(/** @type {number} */ id) {
 }
 
 /**
- * Build the cells for a new game: balanced quadrants (each number once, 2 of each resource),
- * a tower in each player's base, empty bases for missing players.
+ * Build the cells for a new game. Balanced quadrants: each has a gold cell, 2 of each resource, and
+ * every number once plus one extra number (BOARD.extraNumbers, a different one per quadrant), so all
+ * 9 of its cells have a number.
  * @param {{shuffle: <T>(list: readonly T[]) => T[]}} rng
- * @param {number} playerCount
  * @returns {Cell[]}
  */
-export function generateCells(rng, playerCount) {
-  const bases = PLAYERS.basesByCount[playerCount];
-  if (!bases) throw new Error(`Unsupported player count: ${playerCount}`);
-  if (BASE_CELLS.map(quadrantOf).join() !== '0,1,2,3') throw new Error('BOARD.bases must hold one cell per quadrant, in quadrant order');
+export function generateCells(rng) {
+  if (GOLD_CELLS.map(quadrantOf).join() !== '0,1,2,3') throw new Error('BOARD.goldCells must hold one cell per quadrant, in quadrant order');
   if (SIZE % 2 !== 0) throw new Error(`Board size must be even, got ${SIZE}`);
-  const perQuadrant = (SIZE / 2) ** 2 - 1;
-  if (perQuadrant % BOARD.numbers.length !== 0 || perQuadrant % RESOURCES.length !== 0) {
-    throw new Error(`A quadrant has ${perQuadrant} normal cells: it must split evenly into numbers and resources`);
+  const perQuadrant = (SIZE / 2) ** 2;
+  if (BOARD.numbers.length + 1 !== perQuadrant || BOARD.extraNumbers.length !== 4 || (perQuadrant - 1) % RESOURCES.length !== 0) {
+    throw new Error(`A quadrant has ${perQuadrant} cells: one gold cell, the numbers once and one extra number`);
   }
 
   /** @type {Cell[]} */
-  const cells = Array.from({ length: CELL_COUNT }, (_, id) => ({
-    id,
-    row: cellRow(id),
-    col: cellCol(id),
-    kind: 'normal',
-    resource: null,
-    number: null,
-    towerOwner: null,
-    troops: Array(playerCount).fill(0)
-  }));
-
+  const cells = Array.from({ length: CELL_COUNT }, (_, id) => ({ id, row: cellRow(id), col: cellCol(id), kind: 'normal', resource: '', number: 0 }));
+  const extras = rng.shuffle(BOARD.extraNumbers);
   for (let q = 0; q < 4; q++) {
-    const quadrantCells = cells.filter((cell) => quadrantOf(cell.id) === q && !BASE_CELLS.includes(cell.id));
-    const numbers = rng.shuffle(repeat(BOARD.numbers, perQuadrant / BOARD.numbers.length));
-    const resources = rng.shuffle(repeat(RESOURCES, perQuadrant / RESOURCES.length));
+    const quadrantCells = cells.filter((cell) => quadrantOf(cell.id) === q);
+    const numbers = rng.shuffle([...BOARD.numbers, extras[q]]);
+    const resources = rng.shuffle(Array.from({ length: (perQuadrant - 1) / RESOURCES.length }, () => RESOURCES).flat());
     quadrantCells.forEach((cell, i) => {
       cell.number = numbers[i];
-      cell.resource = resources[i];
+      if (GOLD_CELLS.includes(cell.id)) {
+        cell.kind = 'gold';
+        cell.resource = GOLD;
+      } else {
+        cell.resource = /** @type {string} */ (resources.pop());
+      }
     });
   }
-
-  BASE_CELLS.forEach((id, base) => {
-    const owner = bases.indexOf(base);
-    const cell = cells[id];
-    if (owner >= 0) {
-      cell.kind = 'tower';
-      cell.resource = GOLD;
-      cell.towerOwner = owner;
-    } else {
-      cell.kind = 'empty';
-    }
-  });
   return cells;
-}
-
-/**
- * @template T
- * @param {readonly T[]} list
- * @param {number} times
- */
-function repeat(list, times) {
-  return Array.from({ length: times }, () => list).flat();
 }

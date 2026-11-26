@@ -4,50 +4,51 @@
 
 ## Pitch
 
-A board game of troops on a 6 x 6 grid: your troops gather resources by majority, your tower gives free troops and gold, and you expand, build and fight until you are the last player standing.
+A board game on a 6 x 6 grid where **buildings are the center**: place a castle or port, spread roads, build and promote settlements to collect resources from the cells around them. Troops will come later, to help your buildings or harm the rivals'.
 
 ## Question this prototype answers
 
-Do the trial rules ([trial-rules.md](trial-rules.md)) make a game that develops in an interesting way, with real choices every turn and a winner in a reasonable number of turns?
+Do buildings and roads alone ([trial-rules.md](trial-rules.md)) give interesting choices every turn, with an economy that does not pile up cards the way the troop version did?
 
 ## Core verb
 
-Move troops (and fight with them) to win cell majorities.
+Build: roads, then settlements, then promotions.
 
 ## Controls
 
 | Action | Mouse | Keyboard |
 | ------ | ----- | -------- |
-| Move troops | Click one of your cells (all its troops are picked: change the number with − + or the mouse wheel), then a highlighted cell at any distance (as long as you can pay); a box shows the price: Accept, or click the same cell again; another cell changes the destination | Accept: Enter |
-| Attack | With a cell selected, click a red cell (or your selected cell, to attack inside it) | Popup buttons: Tab, Enter |
-| Build, promote, conquer, trade, move a settlement | Click a white circle on an intersection, then pick in the popup | Tab, Enter |
-| Recruit | Click a cell touching your castle (or your selected cell again) | – |
+| Place your start building (setup) | Click any free intersection | – |
+| Build a road | Click a dashed mark in the middle of a cell side (one click; the pointer shows the cost) | – |
+| Build a settlement | Click a circle on an intersection next to your road (one click) | – |
+| Promote, trade at a port, move a settlement | Click the ring around your building, then pick in the popup (moving: then click the destination) | Tab, Enter |
+| Exchange gold for a card | Panel buttons | Tab, Enter |
 | End turn | Panel button | Tab, Enter |
 | Cancel, or pause | – | Escape |
 
-The dice are rolled automatically. Choices open in a popup next to the click. Clicking a cell with nothing to do there shows its details.
+The dice are rolled automatically. Hovering a road mark or a circle shows the building in faded color and its cost. Clicking a cell shows its details.
 
 ## Core loop
 
-Start of turn (gold, free troops) → roll the dice (production) → buy actions → end turn → next player. A player who can no longer act is eliminated; the last one wins.
+Roll the dice (production) → build → end turn → next player. No end yet.
 
 ## Win and lose conditions
 
-See [T9 in trial-rules.md](trial-rules.md#t9-elimination-and-victory).
+None yet (see the open questions in [trial-rules.md](trial-rules.md#open-questions)).
 
 ## Players
 
-2 to 4, hot seat (same screen, taking turns). No bots, no online play.
+2 to 4, hot seat (same screen, taking turns). No bots in the game (bots exist only in the simulator, `tools/sim/`).
 
 ## Signals
 
-- **Keep if:** games reach an end in under about 40 turns, and players hesitate between several actions most turns.
-- **Kill or retune if:** one strategy (for example, staying home for tower gold) always wins, or games stall with nobody able to break through.
+- **Keep if:** players hesitate between several builds most turns, and cards do not pile up.
+- **Kill or retune if:** the board fills up early and turns become empty, or one opening always wins.
 - **Timebox:** a few playtests per rule change.
 
 ## Cut list
 
-Cards (2, 7, 12 are rerolled), the ship action, bots, online play, art, animations, saves, board keyboard control.
+Troops (for now), cards (2, 7, 12 are rerolled), victory, bots in the game, online play, art, animations, saves.
 
 ## Tuning
 
@@ -56,21 +57,19 @@ Everything is in `source/src/config.js`:
 | Value | What it changes |
 | ----- | --------------- |
 | `COSTS` | Cost of every action. |
-| `TROOPS.maxPerCell`, `maxPerTower`, `start`, `spawnPerTower` | Cell limits, starting troops, free troops per tower per turn. |
-| `BUILDING_BONUS` | Combat bonus of settlements, castles and ports. |
-| `MOVE` | Grain per troop and cell, farthest destination. |
+| `PRODUCTION` | Cards each building type collects. |
+| `BOARD.numbers`, `extraNumbers`, `goldCells` | Numbers per quadrant and gold cell places. |
 | `AUTO_ROLL` | Roll the dice automatically at the start of each turn. |
 | `PORT_TRADE` | Port goods paid for 1 gold. |
-| `CONQUER_SETTLEMENT_INNER` | Cells to hold to conquer an inner settlement. |
 | `BOARD.rerollSums` | Dice sums rolled again. |
 
-Debug: `?debug` shows the overlay; `?seed=N` repeats a board; `?scene=play&players=3` skips the menu. `window.__game.play` has `act(action)`, `roll()`, `endTurn()`, `click(cell, point)`, `choose(index)` and `state()`.
+Debug: `?debug` shows the overlay; `?seed=N` repeats a board; `?scene=play&players=3` skips the menu. `window.__game.play` has `act(action)`, `roll()`, `endTurn()`, `click({point} | {edge} | {cell})`, `choose(index)` and `state()`.
+
+Simulation: `npm run simulate -- 20 expander builder 100` (games, two bot styles, turns) prints income, spending, leftover cards and what was built.
 
 ## Log
 
 | Date | Change or playtest | Result (keep / kill / retune) |
 | ---- | ------------------ | ----------------------------- |
-| 2026-11-25 | First playable greybox of the trial rules. | Too slow: retune. |
-| 2026-11-25 | Bases moved to quadrant centers, 4 starting troops, spawn 4 per turn, missing cards paid with gold automatically. | Retune movement and controls. |
-| 2026-11-25 | Cart (4 troops, 1 cell) and horse (2 troops, 2 cells) replace move and wagon; tower cells hold 4; spawn before gold; board clicks and popups replace the tool buttons; automatic dice roll. | Retune movement. |
-| 2026-11-25 | One move action: pick troops and distance (any distance you can pay), ½ grain per troop and cell; move box with price and Accept; settlements move for 2 grain; attacks count the attacked cell buildings for both sides. | Pending playtest. |
+| 2026-11-25 | Troop version (see the `trial-rules-grid` branch): bot simulations show huge card surpluses and games that never end. | Kill troops as the center. |
+| 2026-11-26 | Buildings first: start castle or port, roads, settlements next to roads, production per building (1 / 2 / 2), numbered gold cells; no troops. Bots: ~30–40 cards in hand at turn 25, but the board is nearly full by turn 50 and then cards pile up (~600–900 by turn 100); grain and iron barely used. | Pending playtest. |

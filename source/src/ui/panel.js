@@ -1,8 +1,10 @@
 // Side panel (HTML): active player, dice, resources, help or cell details, players and log.
 // Plays happen on the board (clicks and the popup menu); the panel only shows state and ends the turn.
+// No winner yet: the players list shows what each one has built.
 
 import { BOARD_VIEW, GOLD, PLAYERS, RESOURCES } from '../config.js';
-import { capacity, towersOf, troopsOnBoard } from '../systems/state.js';
+import { cellCorners } from '../systems/board.js';
+import { buildingsOf, roadsOf } from '../systems/state.js';
 
 /** i18n keys of the player names, by player index (same order as PLAYERS.colors). */
 const PLAYER_KEYS = ['player.red', 'player.blue', 'player.green', 'player.yellow'];
@@ -15,6 +17,9 @@ const RESOURCE_KEYS = {
   iron: 'resource.iron',
   gold: 'resource.gold'
 };
+
+/** @type {Record<string, string>} */
+const BUILDING_KEYS = { settlement: 'building.settlement', castle: 'building.castle', port: 'building.port' };
 
 /** @typedef {(key: string, params?: Record<string, string | number>) => string} Translate */
 /** @typedef {{key: string, params?: Record<string, any>}} Message */
@@ -52,8 +57,9 @@ export function formatMessage(t, { key, params = {} }) {
   /** @type {Record<string, string | number>} */
   const out = {};
   for (const [name, value] of Object.entries(params)) {
-    if (name === 'player' || name === 'defender' || name === 'owner') out[name] = playerName(t, value);
+    if (name === 'player' || name === 'owner') out[name] = playerName(t, value);
     else if (name === 'resource') out[name] = resourceName(t, value);
+    else if (name === 'building') out[name] = t(BUILDING_KEYS[value]);
     else if (name === 'pay') out[name] = costText(t, value);
     else if (Array.isArray(value)) out[name] = value.join(', ');
     else out[name] = value;
@@ -71,9 +77,11 @@ export function renderPanel(root, model, t) {
   const me = state.current;
   const purse = state.players[me].resources;
   const acting = state.phase === 'actions';
+  const setup = state.phase === 'setup';
 
   const dice = state.dice ? `${state.dice[0]} + ${state.dice[1]} = <b>${state.dice[0] + state.dice[1]}</b>` : '–';
   const primary = state.phase === 'roll' ? ['roll', 'action.roll'] : ['end-turn', 'action.end-turn'];
+  const primaryButton = setup ? '' : `<button class="primary" data-action="${primary[0]}">${esc(t(primary[1]))}</button>`;
 
   const resources = [...RESOURCES, GOLD]
     .map((r) => `<span class="res" style="--res:${BOARD_VIEW.colors[/** @type {keyof typeof BOARD_VIEW.colors} */ (r)]}">${esc(resourceName(t, r))} <b>${purse[r]}</b></span>`)
@@ -86,11 +94,18 @@ export function renderPanel(root, model, t) {
 
   const players = state.players
     .map((p) => {
-      const total = RESOURCES.reduce((s, r) => s + p.resources[r], 0);
-      const status = p.eliminated
-        ? esc(t('panel.out'))
-        : `${esc(t('panel.troops'))} ${troopsOnBoard(state, p.id)} · ${esc(t('panel.towers'))} ${towersOf(state, p.id).length} · ${esc(t('panel.cards'))} ${total} · ${esc(resourceName(t, GOLD))} ${p.resources[GOLD]}`;
-      return `<li style="--player:${PLAYERS.colors[p.id]}" class="${p.id === me ? 'active' : ''} ${p.eliminated ? 'out' : ''}"><b>${esc(playerName(t, p.id))}</b> <small>${status}</small></li>`;
+      const cards = RESOURCES.reduce((s, r) => s + p.resources[r], 0);
+      const built = buildingsOf(state, p.id);
+      const count = (/** @type {string} */ type) => built.filter(([, b]) => b.type === type).length;
+      const status = t('panel.built', {
+        settlements: count('settlement'),
+        castles: count('castle'),
+        ports: count('port'),
+        roads: roadsOf(state, p.id).length,
+        cards,
+        gold: p.resources[GOLD]
+      });
+      return `<li style="--player:${PLAYERS.colors[p.id]}" class="${p.id === me ? 'active' : ''}"><b>${esc(playerName(t, p.id))}</b> <small>${esc(status)}</small></li>`;
     })
     .join('');
 
@@ -100,18 +115,19 @@ export function renderPanel(root, model, t) {
     .map((m) => `<li>${esc(formatMessage(t, m))}</li>`)
     .join('');
 
+  const help = setup ? t('help.setup') : t('help.play');
   const context = [
     model.message ? `<p class="message">${esc(formatMessage(t, model.message))}</p>` : '',
-    model.infoCell !== null ? cellInfo(state, model.infoCell, t) : `<p class="muted">${esc(t('help.play'))}</p><p class="muted">${esc(t('help.build'))}</p>`
+    model.infoCell !== null ? cellInfo(state, model.infoCell, t) : `<p class="muted">${esc(help)}</p>`
   ].join('');
 
   root.innerHTML = `
     <header class="turn" style="--player:${PLAYERS.colors[me]}">
       <span class="chip"></span><b>${esc(playerName(t, me))}</b>
-      <span class="muted">${esc(t('panel.turn', { turn: state.turn }))}</span>
+      <span class="muted">${esc(setup ? t('panel.setup') : t('panel.turn', { turn: state.turn }))}</span>
     </header>
     <div class="row"><span class="muted">${esc(t('panel.dice'))}</span> <span class="dice">${dice}</span></div>
-    <button class="primary" data-action="${primary[0]}">${esc(t(primary[1]))}</button>
+    ${primaryButton}
     <section><h3>${esc(t('panel.resources'))}</h3><div class="resources">${resources}</div>
       <div class="exchange"><span class="muted">${esc(t('panel.exchange'))}</span>${exchange}</div></section>
     <section class="context">${context}</section>
@@ -119,17 +135,14 @@ export function renderPanel(root, model, t) {
     <section><h3>${esc(t('panel.log'))}</h3><ul class="log">${log}</ul></section>`;
 }
 
-/** @param {import('../systems/state.js').GameState} state @param {number} id @param {Translate} t */
+/** Resource, number and the buildings that collect from a cell. @param {import('../systems/state.js').GameState} state @param {number} id @param {Translate} t */
 function cellInfo(state, id, t) {
   const cell = state.cells[id];
-  const lines = [];
-  if (cell.kind === 'normal') lines.push(`${esc(resourceName(t, /** @type {string} */ (cell.resource)))} · ${esc(t('info.number', { n: /** @type {number} */ (cell.number) }))}`);
-  if (cell.kind === 'tower') lines.push(`${esc(t('info.tower', { owner: playerName(t, cell.towerOwner) }))}`);
-  if (cell.kind === 'empty') lines.push(esc(t('info.empty')));
-  const troops = cell.troops
-    .map((n, p) => (n > 0 ? `<span class="chip-text" style="--player:${PLAYERS.colors[p]}">${esc(playerName(t, p))} ${n}</span>` : ''))
+  const producers = cellCorners(id)
+    .map((p) => state.buildings[p])
+    .filter(Boolean)
+    .map((b) => `<span class="chip-text" style="--player:${PLAYERS.colors[b.owner]}">${esc(t(BUILDING_KEYS[b.type]))}</span>`)
     .join(' ');
-  lines.push(troops || esc(t('info.no-troops')));
-  lines.push(`<span class="muted">${esc(t('info.capacity', { n: capacity(state, id) }))}</span>`);
+  const lines = [`${esc(resourceName(t, cell.resource))} · ${esc(t('info.number', { n: cell.number }))}`, producers || esc(t('info.no-buildings'))];
   return `<h3>${esc(t('info.title'))}</h3>${lines.map((l) => `<p>${l}</p>`).join('')}`;
 }
