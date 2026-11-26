@@ -12,6 +12,18 @@ export const cellCenter = (/** @type {number} */ id) => ({ x: margin + (cellCol(
 
 export const pointPos = (/** @type {number} */ id) => ({ x: margin + pointCol(id) * CELL, y: margin + pointRow(id) * CELL });
 
+/**
+ * Position of troop slot k of a cell with `slots` places: a circle around the center, starting at the top.
+ * @param {number} id
+ * @param {number} k
+ * @param {number} slots
+ */
+export function troopSlot(id, k, slots) {
+  const c = cellCenter(id);
+  const angle = -Math.PI / 2 + (k * 2 * Math.PI) / slots;
+  return { x: c.x + Math.cos(angle) * BOARD_VIEW.troopRing, y: c.y + Math.sin(angle) * BOARD_VIEW.troopRing };
+}
+
 /** Middle of an edge (a cell side). */
 export function edgeMid(/** @type {number} */ id) {
   const [a, b] = edgeEnds(id).map(pointPos);

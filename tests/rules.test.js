@@ -121,22 +121,22 @@ test('production: gold cells give gold; a roll produces only the cells with that
   assert.equal(state.players[0].resources.wood, 0);
 });
 
-test('roads: start at your building or your road, on a free side, for 1 wood (or gold)', () => {
-  const state = setup(2, { wood: 3 });
+test('roads: start at your building or your road, on a free side, paid with cards or gold', () => {
+  const state = setup(2, { wood: 9 });
   state.buildings[P] = { type: 'castle', owner: 0 };
   state.buildings[10] = { type: 'castle', owner: 1 };
   assert.equal(checkAction(state, { type: 'build-road', edge: road(1, 2) }), 'error.road-not-connected');
   applyAction(state, { type: 'build-road', edge: road(P, 25) });
   assert.equal(state.roads[road(P, 25)], 0);
-  assert.equal(state.players[0].resources.wood, 3 - COSTS.road.wood);
+  assert.equal(state.players[0].resources.wood, 9 - COSTS.road.wood);
   assert.equal(checkAction(state, { type: 'build-road', edge: road(25, 26) }), null, 'it continues from your road');
   assert.equal(checkAction(state, { type: 'build-road', edge: road(P, 25) }), 'error.road-taken');
   assert.equal(checkAction(state, { type: 'build-road', edge: road(10, 11) }), 'error.road-not-connected', 'not from a rival building');
   state.roads[road(31, 38)] = 1;
   assert.equal(checkAction(state, { type: 'build-road', edge: road(38, 39) }), 'error.road-not-connected', 'not from a rival road');
-  state.players[0].resources = { wood: 0, stone: 0, grain: 0, iron: 0, gold: 1 };
+  state.players[0].resources = { wood: 0, stone: 0, grain: 0, iron: 0, gold: COSTS.road.wood };
   const r = applyAction(state, { type: 'build-road', edge: road(25, 26) });
-  assert.equal(r.goldUsed, 1);
+  assert.equal(r.goldUsed, COSTS.road.wood);
   assert.equal(checkAction(state, { type: 'build-road', edge: road(26, 27) }), 'error.cannot-pay');
 });
 

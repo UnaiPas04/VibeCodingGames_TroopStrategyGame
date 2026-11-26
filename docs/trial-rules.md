@@ -84,18 +84,24 @@ All costs and numbers are **placeholders** to be tuned in playtests. Every one o
 | Action | Cost |
 | --- | --- |
 | Start building (setup) | free |
-| Road | 1 wood |
-| Settlement | 1 stone + 1 wood |
-| Promote to castle | 4 stone + 2 wood |
-| Promote to port | 2 stone + 3 wood |
+| Road | 2 wood |
+| Settlement | 2 wood + 1 stone |
+| Promote to castle | 5 stone |
+| Promote to port | 3 stone + 2 wood |
+
+The early expansion runs on wood; the late promotions run on stone.
 | Move a settlement (one step) | 2 grain |
 | Port trade | 2 port goods → 1 gold |
+
+## Planned (when troops come back)
+
+- **Destroying rival castles:** troops will be able to destroy rival castles.
+- **Road ownership from troops:** who owns a road will probably depend on the troops around it.
 
 ## Open questions
 
 - **Victory condition** for this version (points for buildings? a number of castles? controlling the gold cells?).
 - **Iron and grain** have almost no use until troops come back (grain only moves settlements).
 - **The board fills up:** with 2 players, the 49 intersections are nearly all built by turn 50 (bot simulations), and then cards only pile up. Limit buildings per player, add a distance rule between settlements, or give cards a use that never runs out (troops)?
-- **Road cost:** 1 wood is a guess.
 - Should rival buildings block roads?
 - Can a castle or port also be placed (not only promoted) later in the game?

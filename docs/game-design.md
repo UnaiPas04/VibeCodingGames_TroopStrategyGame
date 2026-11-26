@@ -72,4 +72,5 @@ Simulation: `npm run simulate -- 20 expander builder 100` (games, two bot styles
 | Date | Change or playtest | Result (keep / kill / retune) |
 | ---- | ------------------ | ----------------------------- |
 | 2026-11-25 | Troop version (see the `trial-rules-grid` branch): bot simulations show huge card surpluses and games that never end. | Kill troops as the center. |
-| 2026-11-26 | Buildings first: start castle or port, roads, settlements next to roads, production per building (1 / 2 / 2), numbered gold cells; no troops. Bots: ~30–40 cards in hand at turn 25, but the board is nearly full by turn 50 and then cards pile up (~600–900 by turn 100); grain and iron barely used. | Pending playtest. |
+| 2026-11-26 | Buildings first: start castle or port, roads, settlements next to roads, production per building (1 / 2 / 2), numbered gold cells; no troops. Bots: ~30–40 cards in hand at turn 25, but the board is nearly full by turn 50 and then cards pile up (~600–900 by turn 100); grain and iron barely used. | Keep: more balanced and fun than the troop version. |
+| 2026-11-26 | New costs: road 2 wood, settlement 2 wood + 1 stone, castle 5 stone, port 3 stone + 2 wood (wood for the early expansion, stone for the late promotions). | Pending playtest. |

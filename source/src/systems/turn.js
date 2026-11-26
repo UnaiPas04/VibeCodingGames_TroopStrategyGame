@@ -1,10 +1,11 @@
-// Turn flow (pure): setup (each player places a castle or port), dice roll with production, end of turn.
+// Turn flow (pure): setup (each player places a castle or port), dice roll with production, end of turn
+// (eliminated players are skipped).
 // Rules: docs/trial-rules.md.
 
 import { BOARD, PRODUCTION } from '../config.js';
 import { applyAction } from './actions.js';
 import { cellCorners } from './board.js';
-import { createState } from './state.js';
+import { blockerOf, createState } from './state.js';
 
 /** @typedef {import('./state.js').GameState} GameState */
 /** @typedef {{int: (min: number, max: number) => number, shuffle: <T>(list: readonly T[]) => T[]}} Rng */
@@ -40,7 +41,8 @@ export function placeStart(state, point) {
 
 /**
  * Every cell with this number produces: each building on its corners gives its owner
- * PRODUCTION[type] cards of the cell's resource (gold on gold cells).
+ * PRODUCTION[type] cards of the cell's resource (gold on gold cells). A cell full of one player's
+ * troops is blocked: only that player's buildings collect from it.
  * @param {GameState} state
  * @param {number} sum
  */
@@ -49,11 +51,12 @@ export function produce(state, sum) {
   const gains = [];
   for (const cell of state.cells) {
     if (cell.number !== sum) continue;
+    const blocker = blockerOf(state, cell.id);
     /** @type {Map<number, number>} */
     const byPlayer = new Map();
     for (const p of cellCorners(cell.id)) {
       const b = state.buildings[p];
-      if (b) byPlayer.set(b.owner, (byPlayer.get(b.owner) ?? 0) + PRODUCTION[b.type]);
+      if (b && (blocker === null || b.owner === blocker)) byPlayer.set(b.owner, (byPlayer.get(b.owner) ?? 0) + PRODUCTION[b.type]);
     }
     for (const [player, amount] of byPlayer) {
       state.players[player].resources[cell.resource] += amount;
@@ -91,7 +94,8 @@ export function rollDice(state, rng) {
  */
 export function endTurn(state) {
   if (state.phase !== 'actions') throw new Error(`Cannot end the turn in phase ${state.phase}`);
-  state.current = (state.current + 1) % state.playerCount;
+  do state.current = (state.current + 1) % state.playerCount;
+  while (state.players[state.current].eliminated);
   state.turn += 1;
   state.phase = 'roll';
   state.dice = null;

@@ -1,14 +1,21 @@
-// Draws the board on the canvas: cells, numbers, roads, buildings and highlights. Greybox shapes only.
+// Draws the board on the canvas: cells, numbers, troops, roads, buildings and highlights. Greybox shapes only.
 
-import { BOARD_VIEW, PLAYERS, VIEW } from '../config.js';
+import { BOARD_VIEW, PLAYERS, TROOPS, VIEW } from '../config.js';
 import { edgeEnds } from '../systems/board.js';
-import { cellCenter, cellRect, edgeMid, pointPos } from './board-layout.js';
+import { blockerOf } from '../systems/state.js';
+import { cellCenter, cellRect, edgeMid, pointPos, troopSlot } from './board-layout.js';
 
 const C = BOARD_VIEW.colors;
 const OUTLINE = '#0d0e13';
 
 /**
  * @typedef {object} Highlights
+ * @property {number[]} [moves] Cells the selected troops can move to.
+ * @property {number[]} [attacks] Cells the selected troops can attack.
+ * @property {number | null} [source] Selected cell with your troops.
+ * @property {{from: number, to: number, count: number, player: number} | null} [preview] Move being chosen:
+ *   the troops that leave are drawn faded in the source, and the ones that arrive as ghosts in the destination.
+ * @property {number[]} [rings] Buildings in a building attack (white rings).
  * @property {number[]} [points] Intersections with something to do (circles).
  * @property {number[]} [roads] Edges where a road can be built (slots).
  * @property {number | null} [sourcePoint] Settlement being moved.
@@ -34,6 +41,13 @@ export function drawBoard(ctx, state, hl) {
   const player = hl.player ?? state.current;
 
   for (const cell of state.cells) drawCell(ctx, cell);
+  for (const id of hl.moves ?? []) fillCell(ctx, id, C.target);
+  for (const id of hl.attacks ?? []) fillCell(ctx, id, C.attack);
+  for (const cell of state.cells) {
+    const blocker = blockerOf(state, cell.id);
+    if (blocker !== null) strokeCell(ctx, cell.id, PLAYERS.colors[blocker], 6); // blocked for the rivals
+  }
+  for (const cell of state.cells) drawTroops(ctx, cell, hl.preview ?? null);
   if (hl.hoverCell != null && hl.hoverPoint == null && hl.hoverRoad == null) strokeCell(ctx, hl.hoverCell, 'rgba(255,255,255,0.5)', 2);
   if (hl.selectedCell != null) strokeCell(ctx, hl.selectedCell, C.select, 3);
 
@@ -43,6 +57,56 @@ export function drawBoard(ctx, state, hl) {
   for (const id of hl.points ?? []) drawPointCircle(ctx, id, id === hl.hoverPoint, id in state.buildings);
   if (hl.ghost) drawBuilding(ctx, hl.ghost.point, hl.ghost.type, PLAYERS.colors[player], 0.6);
   if (hl.sourcePoint != null) ringPoint(ctx, hl.sourcePoint, C.select, 3);
+  for (const p of hl.rings ?? []) ringPoint(ctx, p, C.select, 3);
+  if (hl.source != null) strokeCell(ctx, hl.source, C.select, 4);
+}
+
+/**
+ * Troops of a cell on a ring of slots. With a move preview, the troops that leave are faded and the
+ * ones that arrive are ghosts with a dashed outline.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {import('../systems/board.js').Cell} cell
+ * @param {{from: number, to: number, count: number, player: number} | null} preview
+ */
+function drawTroops(ctx, cell, preview) {
+  const slots = TROOPS.maxPerCell;
+  const leaving = preview && preview.from === cell.id ? preview.count : 0;
+  const arriving = preview && preview.to === cell.id ? preview.count : 0;
+  let slot = 0;
+  cell.troops.forEach((n, player) => {
+    // The last `leaving` troops of the mover in the source are the ones that go.
+    const firstLeaving = preview && player === preview.player ? n - leaving : n;
+    for (let i = 0; i < n && slot < slots; i++, slot++) drawTroop(ctx, troopSlot(cell.id, slot, slots), PLAYERS.colors[player], i >= firstLeaving ? 'leaving' : 'solid');
+  });
+  for (let i = 0; i < arriving && slot < slots; i++, slot++) drawTroop(ctx, troopSlot(cell.id, slot, slots), PLAYERS.colors[/** @type {number} */ (preview?.player)], 'arriving');
+}
+
+/**
+ * One troop token. Previews: 'leaving' is faded, 'arriving' is a ghost with a dashed outline.
+ * @param {CanvasRenderingContext2D} ctx
+ * @param {{x: number, y: number}} p
+ * @param {string} color
+ * @param {'solid' | 'leaving' | 'arriving'} look
+ */
+function drawTroop(ctx, p, color, look) {
+  ctx.save();
+  ctx.globalAlpha = look === 'solid' ? 1 : look === 'leaving' ? 0.3 : 0.55;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, BOARD_VIEW.troopRadius, 0, Math.PI * 2);
+  ctx.fillStyle = color;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = look === 'arriving' ? '#ffffff' : OUTLINE;
+  if (look === 'arriving') ctx.setLineDash([3, 3]);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** @param {CanvasRenderingContext2D} ctx @param {number} id @param {string} color */
+function fillCell(ctx, id, color) {
+  const r = cellRect(id);
+  ctx.fillStyle = color;
+  ctx.fillRect(r.x, r.y, r.w, r.h);
 }
 
 /** @param {CanvasRenderingContext2D} ctx @param {import('../systems/board.js').Cell} cell */

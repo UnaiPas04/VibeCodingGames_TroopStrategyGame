@@ -23,6 +23,7 @@ export const GOLD_CELLS = BOARD.goldCells.map(([row, col]) => row * SIZE + col);
  * @property {'normal' | 'gold'} kind normal: one of RESOURCES; gold: produces gold.
  * @property {string} resource One of RESOURCES, or GOLD.
  * @property {number} number Dice number.
+ * @property {number[]} troops Troops per player index (filled in by createState).
  */
 
 export const cellRow = (/** @type {number} */ id) => Math.floor(id / SIZE);
@@ -33,6 +34,26 @@ export const isEdge = (/** @type {number} */ id) => Number.isInteger(id) && id >
 export const pointRow = (/** @type {number} */ id) => Math.floor(id / POINTS);
 export const pointCol = (/** @type {number} */ id) => id % POINTS;
 const pointId = (/** @type {number} */ row, /** @type {number} */ col) => row * POINTS + col;
+
+/** Orthogonal neighbor cells. */
+export function cellNeighbors(/** @type {number} */ id) {
+  const r = cellRow(id);
+  const c = cellCol(id);
+  /** @type {number[]} */
+  const out = [];
+  if (r > 0) out.push(id - SIZE);
+  if (c < SIZE - 1) out.push(id + 1);
+  if (r < SIZE - 1) out.push(id + SIZE);
+  if (c > 0) out.push(id - 1);
+  return out;
+}
+
+/** Two cells that share a side. */
+export const areNeighbors = (/** @type {number} */ a, /** @type {number} */ b) => cellNeighbors(a).includes(b);
+
+/** Orthogonal steps between two cells. */
+export const cellDistance = (/** @type {number} */ a, /** @type {number} */ b) =>
+  Math.abs(cellRow(a) - cellRow(b)) + Math.abs(cellCol(a) - cellCol(b));
 
 /** The 4 intersections at the corners of a cell. */
 export function cellCorners(/** @type {number} */ id) {
@@ -102,6 +123,19 @@ export function edgeBetween(/** @type {number} */ a, /** @type {number} */ b) {
 /** Edges that start at an intersection: 4 (inner), 3 (coast) or 2 (corner). */
 export const pointEdges = (/** @type {number} */ id) => pointNeighbors(id).map((n) => /** @type {number} */ (edgeBetween(id, n)));
 
+/** The 4 sides of a cell (edges). */
+export function cellEdges(/** @type {number} */ id) {
+  const [a, b, c, d] = cellCorners(id);
+  return /** @type {number[]} */ ([edgeBetween(a, b), edgeBetween(b, c), edgeBetween(d, c), edgeBetween(a, d)]);
+}
+
+/** Two intersections on the corners of a common cell (neighbors, or opposite corners of a cell). */
+export function pointsShareCell(/** @type {number} */ a, /** @type {number} */ b) {
+  if (a === b) return false;
+  const cells = pointCells(b);
+  return pointCells(a).some((c) => cells.includes(c));
+}
+
 /** Quadrant index of a cell: 0 top-left, 1 top-right, 2 bottom-right, 3 bottom-left (same order as GOLD_CELLS). */
 export function quadrantOf(/** @type {number} */ id) {
   const half = SIZE / 2;
@@ -126,7 +160,7 @@ export function generateCells(rng) {
   }
 
   /** @type {Cell[]} */
-  const cells = Array.from({ length: CELL_COUNT }, (_, id) => ({ id, row: cellRow(id), col: cellCol(id), kind: 'normal', resource: '', number: 0 }));
+  const cells = Array.from({ length: CELL_COUNT }, (_, id) => ({ id, row: cellRow(id), col: cellCol(id), kind: 'normal', resource: '', number: 0, troops: [] }));
   const extras = rng.shuffle(BOARD.extraNumbers);
   for (let q = 0; q < 4; q++) {
     const quadrantCells = cells.filter((cell) => quadrantOf(cell.id) === q);

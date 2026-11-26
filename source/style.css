@@ -259,6 +259,21 @@ button.small {
   font-weight: 600;
 }
 
+.stepper b {
+  min-width: 2ch;
+  text-align: center;
+  font-size: 16px;
+}
+
+[data-action='defender'] {
+  border-left: 6px solid var(--player);
+}
+
+[data-action='defender'][aria-pressed='true'] {
+  opacity: 1;
+  background: var(--accent);
+}
+
 .chip {
   width: 12px;
   height: 12px;
@@ -341,6 +356,30 @@ button.small {
   font-weight: 400;
   font-size: 11px;
   opacity: 0.75;
+}
+
+/* Compact menu over the lower part of the selected cell: neighbor cells stay clickable. */
+.popup.compact {
+  min-width: 0;
+  max-width: 110px;
+  padding: 3px;
+  gap: 3px;
+  font-size: 11px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+}
+
+.popup.compact > button {
+  padding: 2px 6px;
+  line-height: 1.15;
+}
+
+.popup.compact small {
+  font-size: 9px;
+}
+
+.popup.compact .stepper {
+  justify-content: center;
+  gap: 4px;
 }
 
 /* What a click under the pointer does, and its cost. */

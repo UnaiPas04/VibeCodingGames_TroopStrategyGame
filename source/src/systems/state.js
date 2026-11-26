@@ -1,7 +1,7 @@
 // Game state and read-only queries (pure, no DOM). The state is a plain JSON-friendly object.
 
-import { GOLD, PLAYERS, RESOURCES } from '../config.js';
-import { generateCells, isCell, pointEdges } from './board.js';
+import { GOLD, PLAYERS, RESOURCES, TROOPS } from '../config.js';
+import { cellEdges, generateCells, isCell, pointEdges } from './board.js';
 
 /** @typedef {Record<string, number>} Purse  Resource cards by name (RESOURCES + GOLD). */
 
@@ -9,6 +9,7 @@ import { generateCells, isCell, pointEdges } from './board.js';
  * @typedef {object} Player
  * @property {number} id Player index (also their color).
  * @property {Purse} resources
+ * @property {boolean} eliminated No buildings left: out of the game.
  */
 
 /**
@@ -46,8 +47,8 @@ export function createState(rng, playerCount) {
   }
   return {
     playerCount,
-    players: Array.from({ length: playerCount }, (_, id) => ({ id, resources: emptyPurse() })),
-    cells: generateCells(rng),
+    players: Array.from({ length: playerCount }, (_, id) => ({ id, resources: emptyPurse(), eliminated: false })),
+    cells: generateCells(rng).map((cell) => ({ ...cell, troops: Array(playerCount).fill(0) })),
     buildings: {},
     roads: {},
     current: 0,
@@ -87,16 +88,51 @@ export const roadsOf = (/** @type {GameState} */ state, /** @type {number} */ pl
 export const touchesOwnRoad = (/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ point) =>
   pointEdges(point).some((e) => state.roads[e] === player);
 
+/** True if one of the player's roads is on a side of the cell. */
+export const cellTouchesOwnRoad = (/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ cell) =>
+  cellEdges(cell).some((e) => state.roads[e] === player);
+
+/** Players still in the game. */
+export const alivePlayers = (/** @type {GameState} */ state) => state.players.filter((p) => !p.eliminated).map((p) => p.id);
+
+// ---- Troops ----
+
+/** Troops of one player in a cell. */
+export const troopsOf = (/** @type {GameState} */ state, /** @type {number} */ cell, /** @type {number} */ player) =>
+  cellAt(state, cell).troops[player] ?? 0;
+
+/** All troops in a cell. */
+export const totalTroops = (/** @type {GameState} */ state, /** @type {number} */ cell) =>
+  cellAt(state, cell).troops.reduce((a, b) => a + b, 0);
+
+export const freeSlots = (/** @type {GameState} */ state, /** @type {number} */ cell) => TROOPS.maxPerCell - totalTroops(state, cell);
+
+/** Players with troops in a cell. */
+export const playersIn = (/** @type {GameState} */ state, /** @type {number} */ cell) =>
+  cellAt(state, cell)
+    .troops.map((n, p) => (n > 0 ? p : -1))
+    .filter((p) => p >= 0);
+
+/** Troops of a player on the whole board. */
+export const troopsOnBoard = (/** @type {GameState} */ state, /** @type {number} */ player) =>
+  state.cells.reduce((sum, cell) => sum + cell.troops[player], 0);
+
+/** The player whose troops fill the cell (it is blocked for their rivals), or null. */
+export function blockerOf(/** @type {GameState} */ state, /** @type {number} */ cell) {
+  const i = cellAt(state, cell).troops.findIndex((n) => n >= TROOPS.maxPerCell);
+  return i >= 0 ? i : null;
+}
+
 // ---- Resources ----
 
 /** @param {Purse} purse @param {Partial<Purse>} cost */
 export const canPay = (purse, cost) => Object.entries(cost).every(([r, n]) => (purse[r] ?? 0) >= (n ?? 0));
 
-/** Can pay the cost if gold is exchanged 1:1 for the missing resources. */
+/** Can pay the cost if gold is exchanged 1:1 for the missing resources (gold in the cost itself is paid with gold). */
 export function canPayWithGold(/** @type {Purse} */ purse, /** @type {Partial<Purse>} */ cost) {
-  let missing = 0;
-  for (const [r, n] of Object.entries(cost)) missing += Math.max(0, (n ?? 0) - (purse[r] ?? 0));
-  return missing <= purse[GOLD];
+  let gold = cost[GOLD] ?? 0;
+  for (const [r, n] of Object.entries(cost)) if (r !== GOLD) gold += Math.max(0, (n ?? 0) - (purse[r] ?? 0));
+  return gold <= purse[GOLD];
 }
 
 /**
@@ -109,6 +145,7 @@ export function payWithGold(purse, cost) {
   if (!canPayWithGold(purse, cost)) throw new Error(`Cannot pay ${JSON.stringify(cost)}, even with gold`);
   let gold = 0;
   for (const [r, n] of Object.entries(cost)) {
+    if (r === GOLD) continue;
     const missing = Math.max(0, (n ?? 0) - (purse[r] ?? 0));
     purse[r] += missing;
     gold += missing;
