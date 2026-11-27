@@ -18,27 +18,10 @@ import {
   pointKind,
   quadrantOf
 } from '../source/src/systems/board.js';
-import { createState } from '../source/src/systems/state.js';
 import { endTurn, newGame, placeStart, produce, rollDice } from '../source/src/systems/turn.js';
+import { P, fixedDice, road, setup } from './helpers.js';
 
-// Board layout used below (6 x 6): cell id = row * 6 + col; intersection id = row * 7 + col.
-// Inner intersection 24 = (3,3) touches cells 14, 15, 20, 21. Its neighbors: 17 (up), 25 (right), 31 (down), 23 (left).
-// Coast intersection 3 = (0,3) touches cells 2 and 3. Corner intersection 0 touches cell 0.
-const P = 24;
-
-/** Fake rng with fixed dice values. @param {number[]} dice */
-const fixedDice = (dice) => ({ int: () => /** @type {number} */ (dice.shift()), shuffle: (/** @type {any[]} */ l) => [...l] });
-
-/** A state in the actions phase with no buildings and the given resources for every player. */
-function setup(playerCount = 2, resources = {}) {
-  const state = createState(createRng(1), playerCount);
-  for (const p of state.players) Object.assign(p.resources, resources);
-  state.phase = 'actions';
-  state.turn = 1;
-  return state;
-}
-
-const road = (/** @type {number} */ a, /** @type {number} */ b) => /** @type {number} */ (edgeBetween(a, b));
+// Coast intersection 3 = (0,3) touches cells 2 and 3. Corner intersection 0 touches cell 0. P: see helpers.js.
 
 test('board: gold cells in place, every cell numbered, balanced quadrants with one extra number each', () => {
   for (let seed = 1; seed <= 20; seed++) {

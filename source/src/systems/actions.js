@@ -25,7 +25,7 @@ import {
   buildingsOf,
   canPay,
   canPayWithGold,
-  cellTouchesOwnRoad,
+  cellTouchesOwnBuilding,
   emptyPurse,
   freeSlots,
   pay,
@@ -242,18 +242,20 @@ export function checkAction(state, action) {
       if (cellDistance(action.from, action.to) > MOVE.maxCells) return 'error.too-far';
       if (!isCount(action.count)) return 'error.bad-count';
       if (troopsOf(state, action.from, me) < action.count) return 'error.not-enough-troops';
-      if (!cellTouchesOwnRoad(state, me, action.to)) return 'error.move-needs-road';
+      if (!cellTouchesOwnBuilding(state, me, action.to)) return 'error.move-needs-building';
       if (freeSlots(state, action.to) < action.count) return 'error.cell-full';
       return affordable();
     }
     case 'attack': {
       const { from, target, defender, count } = action;
       if (!isCell(from) || !isCell(target)) return 'error.invalid-target';
-      if (!areNeighbors(from, target)) return 'error.not-neighbor';
+      const inside = from === target;
+      if (!inside && !areNeighbors(from, target)) return 'error.not-neighbor';
       if (!Number.isInteger(defender) || defender === me || !state.players[defender] || troopsOf(state, target, defender) < 1) {
         return 'error.no-defender';
       }
       if (!isCount(count) || count > troopsOf(state, from, me)) return 'error.not-enough-troops';
+      if (inside && count !== troopsOf(state, from, me)) return 'error.inside-all'; // from inside, every troop fights
       return affordable();
     }
     case 'attack-building': {
@@ -353,18 +355,21 @@ export function applyAction(state, action, rng) {
 }
 
 /**
- * Troops attack a neighboring cell. Each side: troops + buildings on the attacked cell's corners + a die;
- * the defender wins ties. A win kills the defender's troops there and moves the attackers in;
- * a loss kills the attackers.
+ * Troops attack a cell: from a neighboring cell (the attacker's troops already inside join the fight),
+ * or from inside the cell itself (all of them fight). Each side: troops + buildings on the attacked
+ * cell's corners + a die; the defender wins ties. A win kills the defender's troops there and moves
+ * the outside attackers in (as many as fit); a loss kills every attacking troop, inside and outside.
  * @param {GameState} state
  * @param {Extract<Action, {type: 'attack'}>} action
  * @param {{int: (min: number, max: number) => number}} rng
  */
 function troopFight(state, { from, target, defender, count }, rng) {
   const me = state.current;
+  const inside = from === target;
+  const helpers = inside ? 0 : troopsOf(state, target, me); // own troops already in the attacked cell
   const defenderTroops = troopsOf(state, target, defender);
   const fight = {
-    attackerTroops: count,
+    attackerTroops: count + helpers,
     defenderTroops,
     ...attackBonuses(state, target, defender),
     attackerDie: rng.int(1, 6),
@@ -374,13 +379,25 @@ function troopFight(state, { from, target, defender, count }, rng) {
   let moved = 0;
   if (outcome.attackerWins) {
     state.cells[target].troops[defender] = 0;
-    moved = Math.min(count, freeSlots(state, target));
+    moved = inside ? 0 : Math.min(count, freeSlots(state, target));
     state.cells[from].troops[me] -= moved;
     state.cells[target].troops[me] += moved;
   } else {
     state.cells[from].troops[me] -= count;
+    state.cells[target].troops[me] = 0; // the ones inside fall too
   }
-  return { from, target, defender, ...fight, ...outcome, moved, attackerLost: outcome.attackerWins ? 0 : count, defenderLost: outcome.attackerWins ? defenderTroops : 0 };
+  return {
+    from,
+    target,
+    defender,
+    inside,
+    helpers,
+    ...fight,
+    ...outcome,
+    moved,
+    attackerLost: outcome.attackerWins ? 0 : count + helpers,
+    defenderLost: outcome.attackerWins ? defenderTroops : 0
+  };
 }
 
 /**

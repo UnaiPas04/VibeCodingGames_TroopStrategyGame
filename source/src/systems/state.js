@@ -1,7 +1,7 @@
 // Game state and read-only queries (pure, no DOM). The state is a plain JSON-friendly object.
 
 import { GOLD, PLAYERS, RESOURCES, TROOPS } from '../config.js';
-import { cellEdges, generateCells, isCell, pointEdges } from './board.js';
+import { cellCorners, generateCells, isCell, pointEdges } from './board.js';
 
 /** @typedef {Record<string, number>} Purse  Resource cards by name (RESOURCES + GOLD). */
 
@@ -88,9 +88,9 @@ export const roadsOf = (/** @type {GameState} */ state, /** @type {number} */ pl
 export const touchesOwnRoad = (/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ point) =>
   pointEdges(point).some((e) => state.roads[e] === player);
 
-/** True if one of the player's roads is on a side of the cell. */
-export const cellTouchesOwnRoad = (/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ cell) =>
-  cellEdges(cell).some((e) => state.roads[e] === player);
+/** True if one of the player's buildings stands on a corner of the cell. */
+export const cellTouchesOwnBuilding = (/** @type {GameState} */ state, /** @type {number} */ player, /** @type {number} */ cell) =>
+  cellCorners(cell).some((p) => state.buildings[p]?.owner === player);
 
 /** Players still in the game. */
 export const alivePlayers = (/** @type {GameState} */ state) => state.players.filter((p) => !p.eliminated).map((p) => p.id);

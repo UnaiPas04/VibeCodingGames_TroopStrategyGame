@@ -6,7 +6,7 @@
 import { BUILDING_BONUS } from '../config.js';
 import { CELL_COUNT, EDGE_COUNT, POINT_COUNT, pointNeighbors } from './board.js';
 import { checkAction, fittingCount, portTradeOptions } from './actions.js';
-import { buildingsOf, playersIn } from './state.js';
+import { buildingsOf, playersIn, troopsOf } from './state.js';
 
 /**
  * @typedef {{kind: 'action', action: import('./actions.js').Action}
@@ -17,9 +17,10 @@ import { buildingsOf, playersIn } from './state.js';
 
 /** @typedef {import('./state.js').GameState} GameState */
 
-/** Enemies the active player can fight in `target`, attacking from the neighboring cell `from`. */
+/** Enemies the active player can fight in `target`, attacking from the neighboring cell `from` (or from inside: same cell). */
 export function attackableEnemies(/** @type {GameState} */ state, /** @type {number} */ from, /** @type {number} */ target) {
-  return playersIn(state, target).filter((d) => d !== state.current && !checkAction(state, { type: 'attack', from, target, defender: d, count: 1 }));
+  const count = from === target ? troopsOf(state, from, state.current) : 1;
+  return playersIn(state, target).filter((d) => d !== state.current && !checkAction(state, { type: 'attack', from, target, defender: d, count }));
 }
 
 /**
@@ -51,6 +52,8 @@ export function cellChoices(state, source, cell, count = 1) {
   if (source !== null && source !== cell) {
     const action = moveTo(state, source, cell, count);
     if (action) choices.push({ kind: 'action', action });
+  }
+  if (source !== null) {
     const enemies = attackableEnemies(state, source, cell);
     if (enemies.length) choices.push({ kind: 'attack', from: source, target: cell, enemies });
   }

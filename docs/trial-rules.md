@@ -10,13 +10,13 @@ When a trial rule contradicts an official rule, **the trial rule wins** during t
 
 All costs and numbers are **placeholders** to be tuned in playtests. Every one of them lives in `source/src/config.js`.
 
-> **Buildings first.** This branch turns the game around: **buildings are the center of the game**, and troops will only help your buildings or harm the rivals'. Troops are left out for now: this version only has buildings and roads. The previous rules (troops, majorities, towers) are kept in the `trial-rules-grid` branch.
+> **Buildings first.** This branch turns the game around: **buildings are the center of the game**, and troops only help your buildings or harm the rivals': they block rival production and, in the long run, topple rival buildings. Troops do not produce anything. The previous rules (troops by majority, towers) are kept in the `trial-rules-grid` branch.
 
 ## Game mode
 
 - **Players:** 2 to 4, all on the same screen, taking turns (hot seat). No bots.
 - **No cards:** a roll of **2, 7 or 12 is rerolled** until it gives another sum.
-- **Victory:** none yet. The game goes on; the panel shows what each player has built.
+- **Victory:** a player with no buildings left is out. The **last player with buildings standing** wins (see [B10](#b10-elimination-and-victory)).
 
 ## Terms
 
@@ -24,6 +24,8 @@ All costs and numbers are **placeholders** to be tuned in playtests. Every one o
   - **Inner:** touches 4 cells. **Coast:** on the board edge, touches 2 cells. **Corner:** a board corner, touches 1 cell.
 - **Side:** a cell side, joining two neighboring intersections. Roads go on sides.
 - **Quadrant:** one of the four 3 x 3 quarters of the board.
+- **Neighboring cells:** two cells that share a side.
+- **Blocked cell:** a cell with 8 troops of one player (see [B7](#b7-troops-and-blocking)).
 
 ## B0. Board
 
@@ -50,6 +52,7 @@ All costs and numbers are **placeholders** to be tuned in playtests. Every one o
   | Port | 2 |
 
 - Several buildings around the same cell add up, even if they belong to different players.
+- A **blocked** cell only pays the buildings of the player who blocks it.
 
 ## B3. Roads
 
@@ -73,6 +76,37 @@ All costs and numbers are **placeholders** to be tuned in playtests. Every one o
 - **Ports** trade 2 cards of the resources of the cells they touch for 1 gold.
 - **Gold** buys any card, 1 for 1 (panel buttons), and pays automatically for the cards you are missing when you buy an action.
 
+## B7. Troops and blocking
+
+- Troops live in **cells**: at most **8 troops per cell**, all players together.
+- Troops produce nothing. If one player has **8 troops in a cell**, the cell is **blocked**: rival buildings around it collect nothing from it.
+- **Recruit:** **4 troops for 2 grain**, in any of the 4 cells around one of your **castles** (fewer if the cell has less room). Ports do not recruit.
+- **Move:** pick a cell of yours, how many of its troops, and a destination at any distance that **touches one of your buildings** (one of its 4 corners) and has room. Cost: **½ grain per troop and cell**, rounded up. Troops pass through any cell.
+
+## B8. Troop attack
+
+- Troops attack the rivals in a cell, in two ways:
+  - **From a neighboring cell** (sharing a side): the attacker picks how many troops to risk. **Their own troops already in the attacked cell join the fight.**
+  - **From inside the cell:** **all** the attacker's troops there fight.
+- If the attacked cell has troops of several rivals, the attacker picks one of them.
+- Each side adds: its **troops** (1 to 8) + a **die** (1 to 6) + its **buildings on the 4 corners of the attacked cell** (castle 2, settlement 1, port 1).
+- The attacker wins only with a higher total (ties go to the defender).
+  - **Win:** the defender's troops in that cell die, and the troops from outside move in (as many as fit).
+  - **Loss:** **every attacking troop dies**: the ones that came from outside and the attacker's troops inside the cell.
+- Cost: **2 iron**.
+
+## B9. Building attack
+
+- One of your buildings attacks a **rival building nearby**: both stand on corners of a same cell (next to each other, or on opposite corners of a cell).
+- Each side adds: a **die** + its **building** (castle 2, settlement 1, port 1) + **troop support**: **+1 for each cell around the attacked building where that side has more troops** than the other one.
+- The attacker wins only with a higher total (ties go to the defender). If the attacker wins, the attacked building is **toppled**: a castle or a port becomes a settlement; a settlement is destroyed (its intersection is free again). Otherwise nothing happens.
+- Cost: **2 iron**.
+
+## B10. Elimination and victory
+
+- A player with **no buildings** is out of the game: their troops, roads and cards are removed, and their turns are skipped.
+- The **last player with buildings** wins.
+
 ## Turn
 
 1. **Roll** two dice (automatic). Production (B2).
@@ -86,22 +120,65 @@ All costs and numbers are **placeholders** to be tuned in playtests. Every one o
 | Start building (setup) | free |
 | Road | 2 wood |
 | Settlement | 2 wood + 1 stone |
-| Promote to castle | 5 stone |
+| Promote to castle | 4 stone + 1 wood |
 | Promote to port | 3 stone + 2 wood |
-
-The early expansion runs on wood; the late promotions run on stone.
 | Move a settlement (one step) | 2 grain |
 | Port trade | 2 port goods → 1 gold |
+| Recruit (4 troops) | 2 grain |
+| Move troops | ½ grain per troop and cell, rounded up |
+| Troop attack | 2 iron |
+| Building attack | 2 iron |
 
-## Planned (when troops come back)
+The early expansion runs on wood; the late promotions run on stone; troops run on grain and iron.
 
-- **Destroying rival castles:** troops will be able to destroy rival castles.
-- **Road ownership from troops:** who owns a road will probably depend on the troops around it.
+## Next rework (decided, not implemented yet)
+
+Decided on 2026-11-27. These rules replace the matching ones above once they are programmed.
+
+### Troops at half scale
+
+- Every troop is worth **2 of the current ones**: at most **4 troops per cell**, and **4 troops of one player block** a cell.
+- In fights, **each troop counts 2**, so the game plays the same with fewer tokens on screen.
+- Prices per troop double: **recruit 2 troops for 2 grain**; **move: 1 grain per troop and cell**.
+
+### Attack and defense of buildings
+
+Each building has an **attack** and a **defense** value (totals, not bonuses on top of the settlement):
+
+| Building | Defense | Attack | Production | Where | Cost |
+| --- | --- | --- | --- | --- | --- |
+| Settlement | 1 | 1 | 1 | next to your road | 2 wood + 1 stone |
+| Castle | 2 | 2 | 2 (x2) | **inside only** (promotion) | 4 stone + 1 wood |
+| Cannon | 2 | 4 | 1 | inside or coast (promotion) | 3 stone + 2 iron |
+| Port | 1 | 0 | 2 (x2) | coast only (promotion); trades for gold | 3 stone + 2 wood |
+
+- Only castles recruit.
+- **Troop fights** use them: the attacker adds the **attack** of their buildings on the corners of the attacked cell; the defender adds the **defense** of theirs.
+
+### Setup
+
+- The first building is always a **castle**, on an **inner** intersection (never on the coast).
+- Start castles cannot be **orthogonal neighbors** (one side apart); diagonal is allowed.
+
+### Building attack (rework)
+
+- Click a **rival building** to attack it. Cost: **2 iron + 1 gold**.
+- The attacker needs at least one of their buildings on the **4 neighboring intersections** of the attacked one (no diagonals), or troops in the cells around it; otherwise they cannot attack (it would be a sure loss).
+- **Defender** (owner of the attacked building): defense of the attacked building + defense of their buildings on its 4 neighboring intersections + their troops in the cells around it (each troop counts 2) + a die.
+- **Attacker:** attack of their buildings on the 4 neighboring intersections of the attacked building + their troops in the cells around it (each troop counts 2) + a die.
+- The attacker wins only with a higher total (ties go to the defender).
+  - **Win:** the attacked building is **destroyed** (any type, no downgrade), and the defender loses **2 troops in each cell around it** (never below 0: 4, 2, 3, 0 become 2, 0, 1, 0).
+  - **Loss:** the attacker loses **2 troops in each cell around the attacked building** (never below 0). The attacking buildings stay.
+
+## Planned
+
+- **Road ownership from troops:** who owns a road may depend on the troops around it.
+- **Troop upkeep** (paid in grain): not for now.
 
 ## Open questions
 
-- **Victory condition** for this version (points for buildings? a number of castles? controlling the gold cells?).
-- **Iron and grain** have almost no use until troops come back (grain only moves settlements).
-- **The board fills up:** with 2 players, the 49 intersections are nearly all built by turn 50 (bot simulations), and then cards only pile up. Limit buildings per player, add a distance rule between settlements, or give cards a use that never runs out (troops)?
+- **Game length:** target about 70 turns (the first turns go fast, with little to buy). The cards for 2, 7 and 12 will change it. See the simulation results in [game-design.md](game-design.md#log).
+- **Cards still pile up late** (300–800 in hand after turn 100), once there is no room left to build or recruit.
 - Should rival buildings block roads?
 - Can a castle or port also be placed (not only promoted) later in the game?
+- A player who starts with a port cannot recruit until they promote a settlement to a castle. Is that fine?

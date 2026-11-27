@@ -9,15 +9,10 @@ import { edgeBetween } from '../source/src/systems/board.js';
 import { activePoints, pointChoices, roadSlots, settlementDestinations } from '../source/src/systems/choices.js';
 import { createState } from '../source/src/systems/state.js';
 import { edgeMid, hitTest, pointPos } from '../source/src/scenes/board-layout.js';
+import { P, setup as setupPlayers } from './helpers.js';
 
-const P = 24; // inner intersection (3,3)
+const setup = (/** @type {Record<string, number>} */ resources = {}) => setupPlayers(2, resources);
 
-function setup(resources = {}) {
-  const state = createState(createRng(1), 2);
-  for (const p of state.players) Object.assign(p.resources, resources);
-  state.phase = 'actions';
-  return state;
-}
 
 test('setup: every free intersection offers the start building', () => {
   const state = createState(createRng(1), 2);
@@ -30,10 +25,11 @@ test('setup: every free intersection offers the start building', () => {
 
 test('road slots: the free sides that connect to your buildings and roads', () => {
   const state = setup({ wood: 5 });
+  const corner = roadSlots(state).length; // the far settlement's sides
   state.buildings[P] = { type: 'castle', owner: 0 };
-  assert.equal(roadSlots(state).length, 4);
+  assert.equal(roadSlots(state).length, corner + 4);
   state.roads[/** @type {number} */ (edgeBetween(P, 25))] = 0;
-  assert.equal(roadSlots(state).length, 3 + 3, 'three more from the end of the road');
+  assert.equal(roadSlots(state).length, corner + 3 + 3, 'three more from the end of the road');
   state.players[0].resources.wood = 0;
   assert.deepEqual(roadSlots(state), [], 'nothing you cannot pay');
 });

@@ -123,12 +123,6 @@ export function edgeBetween(/** @type {number} */ a, /** @type {number} */ b) {
 /** Edges that start at an intersection: 4 (inner), 3 (coast) or 2 (corner). */
 export const pointEdges = (/** @type {number} */ id) => pointNeighbors(id).map((n) => /** @type {number} */ (edgeBetween(id, n)));
 
-/** The 4 sides of a cell (edges). */
-export function cellEdges(/** @type {number} */ id) {
-  const [a, b, c, d] = cellCorners(id);
-  return /** @type {number[]} */ ([edgeBetween(a, b), edgeBetween(b, c), edgeBetween(d, c), edgeBetween(a, d)]);
-}
-
 /** Two intersections on the corners of a common cell (neighbors, or opposite corners of a cell). */
 export function pointsShareCell(/** @type {number} */ a, /** @type {number} */ b) {
   if (a === b) return false;

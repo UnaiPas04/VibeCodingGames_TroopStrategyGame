@@ -1,10 +1,10 @@
 // Side panel (HTML): active player, dice, resources, help or cell details, players and log.
 // Plays happen on the board (clicks and the popup menu); the panel only shows state and ends the turn.
-// No winner yet: the players list shows what each one has built.
+// The players list shows what each one has built and their troops.
 
 import { BOARD_VIEW, GOLD, PLAYERS, RESOURCES } from '../config.js';
 import { cellCorners } from '../systems/board.js';
-import { buildingsOf, roadsOf } from '../systems/state.js';
+import { blockerOf, buildingsOf, roadsOf, troopsOnBoard } from '../systems/state.js';
 
 /** i18n keys of the player names, by player index (same order as PLAYERS.colors). */
 const PLAYER_KEYS = ['player.red', 'player.blue', 'player.green', 'player.yellow'];
@@ -102,10 +102,11 @@ export function renderPanel(root, model, t) {
         castles: count('castle'),
         ports: count('port'),
         roads: roadsOf(state, p.id).length,
+        troops: troopsOnBoard(state, p.id),
         cards,
         gold: p.resources[GOLD]
       });
-      return `<li style="--player:${PLAYERS.colors[p.id]}" class="${p.id === me ? 'active' : ''}"><b>${esc(playerName(t, p.id))}</b> <small>${esc(status)}</small></li>`;
+      return `<li style="--player:${PLAYERS.colors[p.id]}" class="${p.id === me ? 'active' : ''} ${p.eliminated ? 'out' : ''}"><b>${esc(playerName(t, p.id))}</b> <small>${esc(p.eliminated ? t('panel.out') : status)}</small></li>`;
     })
     .join('');
 
@@ -135,7 +136,7 @@ export function renderPanel(root, model, t) {
     <section><h3>${esc(t('panel.log'))}</h3><ul class="log">${log}</ul></section>`;
 }
 
-/** Resource, number and the buildings that collect from a cell. @param {import('../systems/state.js').GameState} state @param {number} id @param {Translate} t */
+/** Resource, number, the buildings that collect from a cell, its troops and whether it is blocked. @param {import('../systems/state.js').GameState} state @param {number} id @param {Translate} t */
 function cellInfo(state, id, t) {
   const cell = state.cells[id];
   const producers = cellCorners(id)
@@ -143,6 +144,15 @@ function cellInfo(state, id, t) {
     .filter(Boolean)
     .map((b) => `<span class="chip-text" style="--player:${PLAYERS.colors[b.owner]}">${esc(t(BUILDING_KEYS[b.type]))}</span>`)
     .join(' ');
-  const lines = [`${esc(resourceName(t, cell.resource))} · ${esc(t('info.number', { n: cell.number }))}`, producers || esc(t('info.no-buildings'))];
+  const troops = cell.troops
+    .map((n, p) => (n > 0 ? `<span class="chip-text" style="--player:${PLAYERS.colors[p]}">${esc(playerName(t, p))} ${n}</span>` : ''))
+    .join(' ');
+  const blocker = blockerOf(state, id);
+  const lines = [
+    `${esc(resourceName(t, cell.resource))} · ${esc(t('info.number', { n: cell.number }))}`,
+    producers || esc(t('info.no-buildings')),
+    troops || esc(t('info.no-troops'))
+  ];
+  if (blocker !== null) lines.push(`<b>${esc(t('info.blocked', { player: playerName(t, blocker) }))}</b>`);
   return `<h3>${esc(t('info.title'))}</h3>${lines.map((l) => `<p>${l}</p>`).join('')}`;
 }

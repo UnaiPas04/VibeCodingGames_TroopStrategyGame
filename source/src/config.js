@@ -95,7 +95,7 @@ export const TROOPS = {
 /** Moving troops: the player picks how many troops and how far; only grain is paid. */
 export const MOVE = {
   grainPerTroopCell: 0.5, // cost = troops x cells x this, rounded up (2 troops 1 cell = 1, 8 troops 2 cells = 8)
-  maxCells: Infinity // farthest destination in orthogonal steps (Infinity: any, as long as you can pay)
+  maxCells: Infinity // farthest destination in orthogonal steps (Infinity: any, as long as you can pay); it must touch one of your buildings
 };
 
 /** Fight bonus of each building: in a troop fight, the buildings on the corners of the attacked cell; in a building attack, the two buildings. */
@@ -117,11 +117,11 @@ export const COSTS = {
   road: { wood: 2 }, // early expansion runs on wood...
   settlement: { wood: 2, stone: 1 },
   moveSettlement: { grain: 2 }, // one step along a road
-  recruit: { grain: 1 }, // TROOPS.recruitBatch troops in a cell next to one of your castles
-  attack: { iron: 2 }, // troops attack a neighboring cell
+  recruit: { grain: 2 }, // TROOPS.recruitBatch troops in a cell next to one of your castles
+  attack: { iron: 2 }, // troops attack a neighboring cell, or rivals inside their own cell
   castle: { stone: 4, wood: 1 }, // ...and the late promotions on stone
   port: { stone: 3, wood: 2 },
-  attackBuilding: { iron: 3, gold: 2 } // a building attacks a nearby rival building
+  attackBuilding: { iron: 2 } // a building attacks a nearby rival building
 };
 
 export const LOG_LINES = 14; // entries shown in the side panel log

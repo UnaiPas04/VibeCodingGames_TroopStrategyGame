@@ -14,7 +14,7 @@ import { costText, playerName } from './panel.js';
 /**
  * @typedef {{kind: 'menu', choices: Choice[], compact?: boolean, count?: number, max?: number}
  *   | {kind: 'move', from: number, to: number, count: number, max: number}
- *   | {kind: 'attack', from: number, target: number, enemies: number[], defender: number, count: number, max: number, attackerBonus: number, defenderBonus: number}
+ *   | {kind: 'attack', from: number, target: number, enemies: number[], defender: number, count: number, max: number, helpers: number, attackerBonus: number, defenderBonus: number}
  *   | {kind: 'attack-building', from: number, target: number, defender: number, building: string, attackerBonus: number, defenderBonus: number, attackerSupport: number, defenderSupport: number}} PopupModel
  */
 
@@ -28,7 +28,7 @@ const esc = (/** @type {unknown} */ s) => String(s).replace(/[&<>"]/g, (c) => `&
  */
 export function describeChoice(t, choice, short = false) {
   if (choice.kind === 'move-settlement') return { label: t('choice.move-settlement'), cost: costText(t, COSTS.moveSettlement) };
-  if (choice.kind === 'attack') return { label: t('choice.attack'), cost: costText(t, COSTS.attack) };
+  if (choice.kind === 'attack') return { label: t(choice.from === choice.target ? 'choice.attack-inside' : 'choice.attack'), cost: costText(t, COSTS.attack) };
   if (choice.kind === 'attack-building') return { label: t('choice.attack-building'), cost: costText(t, COSTS.attackBuilding) };
   const a = choice.action;
   const cost = costText(t, costOf(a));
@@ -103,7 +103,8 @@ export function renderPopup(root, model, at, state, t) {
       <span class="muted">${esc(t('move.retarget'))}</span>`;
   } else if (model.kind === 'attack') {
     const defenderTroops = state.cells[model.target].troops[model.defender];
-    const edge = model.count + model.attackerBonus - (defenderTroops + model.defenderBonus);
+    const inside = model.from === model.target;
+    const edge = model.count + model.helpers + model.attackerBonus - (defenderTroops + model.defenderBonus);
     const defenders =
       model.enemies.length > 1
         ? `<div class="row">${model.enemies
@@ -114,10 +115,11 @@ export function renderPopup(root, model, at, state, t) {
             .join('')}</div>`
         : '';
     root.innerHTML = `
-      <b>${esc(t('choice.attack'))} <small>${esc(costText(t, COSTS.attack))}</small></b>
+      <b>${esc(t(inside ? 'choice.attack-inside' : 'choice.attack'))} <small>${esc(costText(t, COSTS.attack))}</small></b>
       <span class="muted">${esc(t('attack.versus', { defender: playerName(t, model.defender), troops: defenderTroops }))}</span>
       ${defenders}
-      <div class="row"><span>${esc(t('attack.troops'))}</span>${stepper('count', model.count, model.max)}</div>
+      ${inside ? `<span>${esc(t('attack.inside-all', { count: model.count }))}</span>` : `<div class="row"><span>${esc(t('attack.troops'))}</span>${stepper('count', model.count, model.max)}</div>`}
+      ${model.helpers ? `<span class="muted">${esc(t('attack.helpers', { count: model.helpers }))}</span>` : ''}
       <span class="muted">${esc(t('attack.bonus', { mine: model.attackerBonus, theirs: model.defenderBonus }))}</span>
       <b>${esc(t('attack.odds', { pct: Math.round(winChance(edge) * 100) }))}</b>
       ${fightButtons(t, 'fight')}`;
